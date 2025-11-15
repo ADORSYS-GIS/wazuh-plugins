@@ -12,7 +12,7 @@ pipeline:
     - linux/amd64
     - linux/arm64
   build_args:
-    YARA_VERSION: "4.5.0"
+    YARA_VERSION: latest
     RULE_BUNDLE: ./rules/
   artifacts:
     dest: dist/linux-buildx
