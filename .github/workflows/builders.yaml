@@ -123,6 +123,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install Docker engine on macOS
+        shell: bash
+        run: |
+          brew install colima docker
+          if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              COLIMA_ARCH="x86_64"
+          else
+              COLIMA_ARCH="aarch64"
+          fi
+          colima start --arch "${COLIMA_ARCH}" --runtime docker --cpu 4 --memory 6 --disk 10
+          docker context use colima || {
+              docker context create colima --docker "host=unix://$HOME/.colima/default/docker.sock"
+              docker context use colima
+          }
+          docker version
+          echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> "$GITHUB_ENV"
       - name: Set up Python environment
         shell: bash
         run: |
