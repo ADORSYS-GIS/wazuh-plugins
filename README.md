@@ -23,16 +23,18 @@ A curated collection of automation and integration plugins that extend the [Wazu
 ├── builders/              # Docker Buildx contexts for Suricata, Yara, and future appliances
 │   ├── suricata/
 │   │   ├── config.yaml    # CI/CD pipeline contract for Suricata builds
-│   │   ├── Dockerfile     # Placeholder implementation that copies sample rules/scripts
+│   │   ├── Dockerfile     # Multi-stage build that emits release artifacts under /release
 │   │   ├── scripts/       # Entry points plus regression helpers referenced by config.yaml
 │   │   ├── rules/         # Fake Suricata rule files for local testing
-│   │   └── version.txt    # Source of truth for the published artifact version
+│   │   ├── version.txt    # Source of truth for the Buildx inputs (base version, args, etc.)
+│   │   └── release.txt    # Release tag written to GitHub when a binary archive ships
 │   └── yara/
 │       ├── config.yaml
 │       ├── Dockerfile
 │       ├── scripts/
 │       ├── rules/
-│       └── version.txt
+│       ├── version.txt
+│       └── release.txt
 ├── .github/
 │   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
 │   ├── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
@@ -58,20 +60,20 @@ A curated collection of automation and integration plugins that extend the [Wazu
 Some deployments prefer to ship companion services—such as [Suricata](https://suricata.io/) for IDS or [Yara](https://virustotal.github.io/yara/) for file scanning—next to Wazuh so detections and enrichments stay close to the data plane. These builds live under `builders/<appliance>` and follow a shared contract so additional tools can be onboarded without rethinking the layout.
 
 1. **Place Docker assets** – Drop the `Dockerfile`, helper scripts, and configuration templates inside `builders/<name>/`. Keep runtime artifacts (rulesets, signatures, etc.) versioned so CI can reproduce the image. The Suricata and Yara folders already contain fake Dockerfiles, entrypoints, and rule packs to illustrate how supporting files should be laid out.
-2. **Use Docker Buildx** – Each appliance should be built via Buildx to support multi-architecture deployments. A canonical workflow looks like:
+2. **Use Docker Buildx** – Each appliance should be built via Buildx to support multi-architecture deployments **and** to emit binaries that later get attached to GitHub Releases. A canonical workflow that mirrors CI looks like:
    ```bash
    docker buildx create --name wazuh-plugins --use
    docker buildx build builders/suricata \
        --platform linux/amd64,linux/arm64 \
-       --tag ghcr.io/adorsys-gis/wazuh-plugins-suricata:latest \
-       --push
+       --target artifacts \
+       --output type=local,dest=builders/suricata/dist
    ```
-   Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation. The default `config.yaml`
-   files tag images under `ghcr.io/adorsys-gis/wazuh-plugins-<name>` so outputs live under the `ADORSYS-GIS` GitHub Container
-   Registry namespace.
-3. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `YARA_RULESET_URL`) inside `builders/<name>/README.md` so users know how to customize the resulting container.
-4. **Define CI/CD metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation) and a `version.txt` (single source of truth for the tag). These files allow future jobs to auto-discover builders, validate inputs, and stamp release artifacts consistently. `.github/scripts/run_builder.py` consumes these files and runs lint/test/build steps locally or inside CI.
-5. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx, logs into `ghcr.io` with the workflow token, and invokes `run_builder.py` for each entry. Adding a new appliance is as easy as creating a new folder that mirrors the Suricata/Yara layout; the workflow will pick it up automatically. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to pre-warm Buildx caches so subsequent pushes complete faster.
+   Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation. The `artifacts` target
+   exposes files placed under `/release` inside the Dockerfile and writes them to `builders/<name>/dist/` so they can be zipped
+   and published.
+3. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `RULE_BUNDLE`) inside `builders/<name>/README.md` so users know how to customize the resulting bundle.
+4. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into the folder’s `dist/` directory.
+5. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx, primes caches via `ghcr.io`, and invokes `run_builder.py` for each entry. When the workflow runs on `main` it archives `builders/<name>/dist/`, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarball via `softprops/action-gh-release`. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to refresh Buildx caches stored under `ghcr.io/adorsys-gis/wazuh-plugins-<name>/cache`, keeping future builds quick without publishing runtime images.
 
 > **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the Buildx workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
 

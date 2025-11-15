@@ -1,7 +1,7 @@
 name: Builder pipelines
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 on:
@@ -61,3 +61,32 @@ jobs:
         run: pip install pyyaml
       - name: Execute ${{ matrix.builder }} pipeline
         run: .github/scripts/run_builder.py ${{ matrix.config }}
+      - id: package
+        run: |
+          set -euo pipefail
+          builder="${{ matrix.builder }}"
+          release_file="builders/${builder}/release.txt"
+          version=$(cat "${release_file}")
+          artifact_dir="builders/${builder}/dist"
+          package_dir="artifacts"
+          mkdir -p "${package_dir}"
+          archive_name="${builder}-${version}.tar.gz"
+          tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
+      - name: Upload ${{ matrix.builder }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}
+          path: artifacts/${{ steps.package.outputs.archive }}
+      - name: Publish ${{ matrix.builder }} release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
+          name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
+          files: artifacts/${{ steps.package.outputs.archive }}
+          make_latest: true
+          allowUpdates: true
+          draft: false
+          prerelease: false

@@ -2,18 +2,19 @@ pipeline:
   name: suricata
   description: Build and publish the Suricata IDS companion appliance with multi-arch Docker Buildx.
   version_file: version.txt
+  release_file: release.txt
   builder: docker-buildx
   context: builders/suricata
   dockerfile: Dockerfile
+  target: artifacts
   platforms:
     - linux/amd64
     - linux/arm64
-  tags:
-    - ghcr.io/adorsys-gis/wazuh-plugins-suricata:latest
-    - ghcr.io/adorsys-gis/wazuh-plugins-suricata:${VERSION}
   build_args:
     SURICATA_VERSION: "6.0.10"
     RULESET_URL: https://example.com/rules.tar.gz
+  artifacts:
+    dest: dist
   cache:
     type: registry
     url: ghcr.io/adorsys-gis/wazuh-plugins-suricata/cache:latest
@@ -23,6 +24,3 @@ ci:
   tests:
     - name: regression
       command: ./scripts/run-regression.sh
-  publish:
-    push: true
-    provenance: true

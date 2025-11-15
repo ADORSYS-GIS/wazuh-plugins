@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -28,6 +29,23 @@ def build_image(
     version_path = (config_dir / version_file).resolve()
     version = version_path.read_text().strip()
 
+    target = pipeline.get("target")
+
+    artifacts_cfg = pipeline.get("artifacts", {})
+    artifact_type = artifacts_cfg.get("type", "local")
+    artifact_dest_cfg = artifacts_cfg.get("dest")
+    if artifact_dest_cfg:
+        artifact_dest = Path(artifact_dest_cfg)
+        if not artifact_dest.is_absolute():
+            artifact_dest = (config_dir / artifact_dest).resolve()
+    else:
+        artifact_dest = (config_dir / "dist").resolve()
+
+    if not cache_only and artifact_type == "local":
+        if artifact_dest.exists():
+            shutil.rmtree(artifact_dest)
+        artifact_dest.mkdir(parents=True, exist_ok=True)
+
     tags = [tag.replace("${VERSION}", version) for tag in pipeline.get("tags", [])]
     platforms = pipeline.get("platforms", ["linux/amd64"])
     build_args = pipeline.get("build_args", {})
@@ -43,6 +61,9 @@ def build_image(
         "--platform",
         ",".join(platforms),
     ]
+
+    if target:
+        cmd.extend(["--target", target])
 
     if not cache_only:
         for tag in tags:
@@ -60,11 +81,15 @@ def build_image(
     if cache_only:
         cmd.extend(["--output", "type=cacheonly"])
     else:
+        output_arg = artifacts_cfg.get("output")
+        if output_arg:
+            cmd.extend(["--output", output_arg])
+        else:
+            cmd.extend(["--output", f"type={artifact_type},dest={artifact_dest}"])
+
         push = bool(publish.get("push"))
         if push:
             cmd.append("--push")
-        else:
-            cmd.append("--load")
 
     provenance = publish.get("provenance") or (
         isinstance(publish.get("attestations"), list)
