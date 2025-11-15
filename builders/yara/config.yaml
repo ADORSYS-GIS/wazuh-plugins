@@ -14,7 +14,7 @@ pipeline:
     YARA_VERSION: "4.5.0"
     RULE_BUNDLE: ./rules/
   artifacts:
-    dest: dist
+    dest: dist/linux-buildx
   cache:
     type: registry
     url: ghcr.io/adorsys-gis/wazuh-plugins-yara/cache:latest

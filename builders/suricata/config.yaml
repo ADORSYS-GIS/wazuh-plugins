@@ -14,7 +14,7 @@ pipeline:
     SURICATA_VERSION: "6.0.10"
     RULESET_URL: https://example.com/rules.tar.gz
   artifacts:
-    dest: dist
+    dest: dist/linux-buildx
   cache:
     type: registry
     url: ghcr.io/adorsys-gis/wazuh-plugins-suricata/cache:latest
