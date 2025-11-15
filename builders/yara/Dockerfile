@@ -4,6 +4,9 @@ FROM alpine:3.19 AS builder
 ARG YARA_VERSION=latest
 ARG RULE_BUNDLE=./rules/
 ARG MAKE_JOBS=
+ARG GITHUB_TOKEN=
+
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
 RUN apk add --no-cache \
         autoconf \
@@ -26,8 +29,31 @@ WORKDIR /tmp/yara-src
 RUN set -euxo pipefail; \
     RESOLVED_VERSION="$YARA_VERSION"; \
     if [ "$RESOLVED_VERSION" = "latest" ]; then \
-        curl -fsSL https://api.github.com/repos/VirusTotal/yara/releases/latest -o /tmp/latest.json; \
-        RESOLVED_VERSION=$(python3 -c "import json,sys; print(json.load(open('/tmp/latest.json'))['tag_name'])"); \
+        RESOLVED_VERSION=$(python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+
+url = "https://api.github.com/repos/VirusTotal/yara/releases/latest"
+headers = {
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "wazuh-plugins-builder",
+}
+token = os.environ.get("GITHUB_TOKEN")
+if token:
+    headers["Authorization"] = f"Bearer {token}"
+    headers["X-GitHub-Api-Version"] = "2022-11-28"
+req = urllib.request.Request(url, headers=headers)
+try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = resp.read()
+except Exception as exc:  # pragma: no cover - network failures
+    print(f"Unable to query the YARA releases API: {exc}", file=sys.stderr)
+    sys.exit(1)
+print(json.loads(data)["tag_name"])
+PY
+        ); \
     fi; \
     if [ -z "$RESOLVED_VERSION" ]; then \
         echo "Unable to resolve YARA version" >&2; \

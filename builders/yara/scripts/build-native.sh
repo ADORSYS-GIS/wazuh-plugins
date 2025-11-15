@@ -17,11 +17,22 @@ cleanup() {
 
 trap cleanup EXIT
 
+github_api_request() {
+    local url="$1"
+    shift || true
+    local -a curl_args=(-fsSL -H "Accept: application/vnd.github+json" -H "User-Agent: wazuh-plugins-builder")
+    local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+    if [[ -n "${token}" ]]; then
+        curl_args+=(-H "Authorization: Bearer ${token}" -H "X-GitHub-Api-Version: 2022-11-28")
+    fi
+    curl "${curl_args[@]}" "${url}"
+}
+
 resolve_yara_version() {
     local requested="${YARA_VERSION:-latest}"
     if [[ "${requested}" == "latest" ]]; then
         local api_response
-        if ! api_response=$(curl -fsSL https://api.github.com/repos/VirusTotal/yara/releases/latest); then
+        if ! api_response=$(github_api_request "https://api.github.com/repos/VirusTotal/yara/releases/latest"); then
             echo "Unable to query the YARA releases API" >&2
             exit 1
         fi
