@@ -62,10 +62,12 @@ Some deployments prefer to ship companion services—such as [Suricata](https://
    docker buildx create --name wazuh-plugins --use
    docker buildx build builders/suricata \
        --platform linux/amd64,linux/arm64 \
-       --tag ghcr.io/<org>/wazuh-suricata:latest \
+       --tag ghcr.io/adorsys-gis/wazuh-plugins-suricata:latest \
        --push
    ```
-   Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation.
+   Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation. The default `config.yaml`
+   files tag images under `ghcr.io/adorsys-gis/wazuh-plugins-<name>` so outputs live under the `ADORSYS-GIS` GitHub Container
+   Registry namespace.
 3. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `YARA_RULESET_URL`) inside `builders/<name>/README.md` so users know how to customize the resulting container.
 4. **Define CI/CD metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation) and a `version.txt` (single source of truth for the tag). These files allow future jobs to auto-discover builders, validate inputs, and stamp release artifacts consistently. `.github/scripts/run_builder.py` consumes these files and runs lint/test/build steps locally or inside CI.
 5. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx, and invokes `run_builder.py` for each entry. Adding a new appliance is as easy as creating a new folder that mirrors the Suricata/Yara layout; the workflow will pick it up automatically.

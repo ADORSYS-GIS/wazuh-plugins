@@ -9,14 +9,14 @@ pipeline:
     - linux/amd64
     - linux/arm64
   tags:
-    - ghcr.io/example/wazuh-suricata:latest
-    - ghcr.io/example/wazuh-suricata:${VERSION}
+    - ghcr.io/adorsys-gis/wazuh-plugins-suricata:latest
+    - ghcr.io/adorsys-gis/wazuh-plugins-suricata:${VERSION}
   build_args:
     SURICATA_VERSION: "6.0.10"
     RULESET_URL: https://example.com/rules.tar.gz
   cache:
     type: registry
-    url: ghcr.io/example/wazuh-suricata/cache:latest
+    url: ghcr.io/adorsys-gis/wazuh-plugins-suricata/cache:latest
 ci:
   lint:
     - echo "Validate Suricata configs"
