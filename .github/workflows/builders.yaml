@@ -1,0 +1,53 @@
+name: Builder pipelines
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_builders: ${{ steps.set-matrix.outputs.has_builders }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          python <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          builders = []
+          root = Path('builders')
+          if root.exists():
+              for path in sorted(p for p in root.iterdir() if p.is_dir()):
+                  config = path / 'config.yaml'
+                  if config.exists():
+                      builders.append({'builder': path.name, 'config': str(config)})
+
+          matrix = {'include': builders}
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
+              handle.write(f"matrix={json.dumps(matrix)}\n")
+              handle.write(f"has_builders={'true' if builders else 'false'}\n")
+          PY
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.has_builders == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Install builder dependencies
+        run: pip install pyyaml
+      - name: Execute ${{ matrix.builder }} pipeline
+        run: .github/scripts/run_builder.py ${{ matrix.config }}

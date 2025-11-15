@@ -1,0 +1,30 @@
+pipeline:
+  name: yara
+  description: Package and distribute the YARA rule-scanning utility with curated rulesets.
+  version_file: version.txt
+  builder: docker-buildx
+  context: builders/yara
+  dockerfile: Dockerfile
+  platforms:
+    - linux/amd64
+    - linux/arm64
+  tags:
+    - ghcr.io/example/wazuh-yara:latest
+    - ghcr.io/example/wazuh-yara:${VERSION}
+  build_args:
+    YARA_VERSION: "4.5.0"
+    RULE_BUNDLE: ./rules/
+  cache:
+    type: registry
+    url: ghcr.io/example/wazuh-yara/cache:latest
+ci:
+  lint:
+    - echo "Lint YARA rules"
+  tests:
+    - name: sample-scan
+      command: ./scripts/scan-fixtures.sh
+  publish:
+    push: true
+    attestations:
+      - sbom
+      - provenance

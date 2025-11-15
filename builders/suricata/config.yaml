@@ -1,0 +1,28 @@
+pipeline:
+  name: suricata
+  description: Build and publish the Suricata IDS companion appliance with multi-arch Docker Buildx.
+  version_file: version.txt
+  builder: docker-buildx
+  context: builders/suricata
+  dockerfile: Dockerfile
+  platforms:
+    - linux/amd64
+    - linux/arm64
+  tags:
+    - ghcr.io/example/wazuh-suricata:latest
+    - ghcr.io/example/wazuh-suricata:${VERSION}
+  build_args:
+    SURICATA_VERSION: "6.0.10"
+    RULESET_URL: https://example.com/rules.tar.gz
+  cache:
+    type: registry
+    url: ghcr.io/example/wazuh-suricata/cache:latest
+ci:
+  lint:
+    - echo "Validate Suricata configs"
+  tests:
+    - name: regression
+      command: ./scripts/run-regression.sh
+  publish:
+    push: true
+    provenance: true
