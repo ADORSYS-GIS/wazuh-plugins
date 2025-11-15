@@ -7,6 +7,7 @@ pipeline:
   context: builders/yara
   dockerfile: Dockerfile
   target: artifacts
+  native_build_script: scripts/build-native.sh
   platforms:
     - linux/amd64
     - linux/arm64
