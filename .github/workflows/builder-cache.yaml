@@ -56,6 +56,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Install builder dependencies
-        run: pip install pyyaml
+        run: python3 -m pip install --upgrade pip && python3 -m pip install pyyaml
       - name: Prime ${{ matrix.builder }} Buildx cache
         run: .github/scripts/run_builder.py --cache-only ${{ matrix.config }}
