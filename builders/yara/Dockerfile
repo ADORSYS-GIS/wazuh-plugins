@@ -26,7 +26,8 @@ WORKDIR /tmp/yara-src
 RUN set -euxo pipefail; \
     RESOLVED_VERSION="$YARA_VERSION"; \
     if [ "$RESOLVED_VERSION" = "latest" ]; then \
-        RESOLVED_VERSION=$(curl -fsSL https://api.github.com/repos/VirusTotal/yara/releases/latest | awk -F '"' '/"tag_name"/ {print $4; exit}'); \
+        curl -fsSL https://api.github.com/repos/VirusTotal/yara/releases/latest -o /tmp/latest.json; \
+        RESOLVED_VERSION=$(python3 -c "import json,sys; print(json.load(open('/tmp/latest.json'))['tag_name'])"); \
     fi; \
     if [ -z "$RESOLVED_VERSION" ]; then \
         echo "Unable to resolve YARA version" >&2; \

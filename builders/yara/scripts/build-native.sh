@@ -50,13 +50,61 @@ detect_make_jobs() {
     fi
 }
 
+install_with_package_manager() {
+    local missing_tools=("$@")
+    if [[ ${#missing_tools[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+        local packages=()
+        for tool in "${missing_tools[@]}"; do
+            case "$tool" in
+                pkg-config)
+                    packages+=("pkg-config")
+                    ;;
+                glibtoolize|libtoolize)
+                    packages+=("libtool")
+                    ;;
+                *)
+                    packages+=("$tool")
+                    ;;
+            esac
+        done
+        if [[ ${#packages[@]} -gt 0 ]]; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install "${packages[@]}"
+        fi
+        return 0
+    fi
+
+    return 1
+}
+
 require_tools() {
+    local libtool_cmd="libtoolize"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        libtool_cmd="glibtoolize"
+    fi
+
+    local required=(curl tar make gcc autoconf automake pkg-config flex bison "$libtool_cmd")
     local missing=()
-    for tool in curl tar make gcc autoconf automake libtool pkg-config flex bison; do
+    for tool in "${required[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing+=("$tool")
         fi
     done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        if install_with_package_manager "${missing[@]}"; then
+            missing=()
+            for tool in "${required[@]}"; do
+                if ! command -v "$tool" >/dev/null 2>&1; then
+                    missing+=("$tool")
+                fi
+            done
+        fi
+    fi
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo "Missing build dependencies: ${missing[*]}" >&2
         exit 1
