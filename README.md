@@ -34,8 +34,9 @@ A curated collection of automation and integration plugins that extend the [Wazu
 │       ├── rules/
 │       └── version.txt
 ├── .github/
-│   ├── scripts/run_builder.py  # Utility that reads config.yaml and executes the declared steps
-│   └── workflows/builders.yaml # GitHub Actions workflow that iterates over every builder
+│   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
+│   ├── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
+│   └── workflows/builder-cache.yaml # Nightly job that refreshes Buildx caches for all builders
 └── README.md
 ```
 
@@ -70,7 +71,7 @@ Some deployments prefer to ship companion services—such as [Suricata](https://
    Registry namespace.
 3. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `YARA_RULESET_URL`) inside `builders/<name>/README.md` so users know how to customize the resulting container.
 4. **Define CI/CD metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation) and a `version.txt` (single source of truth for the tag). These files allow future jobs to auto-discover builders, validate inputs, and stamp release artifacts consistently. `.github/scripts/run_builder.py` consumes these files and runs lint/test/build steps locally or inside CI.
-5. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx, and invokes `run_builder.py` for each entry. Adding a new appliance is as easy as creating a new folder that mirrors the Suricata/Yara layout; the workflow will pick it up automatically.
+5. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx, logs into `ghcr.io` with the workflow token, and invokes `run_builder.py` for each entry. Adding a new appliance is as easy as creating a new folder that mirrors the Suricata/Yara layout; the workflow will pick it up automatically. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to pre-warm Buildx caches so subsequent pushes complete faster.
 
 > **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the Buildx workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
 

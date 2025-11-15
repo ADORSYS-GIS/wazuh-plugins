@@ -1,15 +1,13 @@
-name: Builder pipelines
+name: Builder cache refresh
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-  workflow_dispatch:
 
 jobs:
   discover:
@@ -40,7 +38,7 @@ jobs:
               handle.write(f"has_builders={'true' if builders else 'false'}\n")
           PY
 
-  build:
+  build-cache:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
     runs-on: ubuntu-latest
@@ -59,5 +57,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Install builder dependencies
         run: pip install pyyaml
-      - name: Execute ${{ matrix.builder }} pipeline
-        run: .github/scripts/run_builder.py ${{ matrix.config }}
+      - name: Prime ${{ matrix.builder }} Buildx cache
+        run: .github/scripts/run_builder.py --cache-only ${{ matrix.config }}

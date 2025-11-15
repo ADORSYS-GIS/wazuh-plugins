@@ -18,7 +18,9 @@ def run_command(command: str, cwd: Path) -> None:
     subprocess.run(command, shell=True, check=True, cwd=cwd)
 
 
-def build_image(config_dir: Path, pipeline: dict, publish: dict) -> None:
+def build_image(
+    config_dir: Path, pipeline: dict, publish: dict, cache_only: bool = False
+) -> None:
     context = Path(pipeline.get("context", config_dir)).resolve()
     dockerfile = pipeline.get("dockerfile", "Dockerfile")
     dockerfile_path = (config_dir / dockerfile).resolve()
@@ -42,8 +44,9 @@ def build_image(config_dir: Path, pipeline: dict, publish: dict) -> None:
         ",".join(platforms),
     ]
 
-    for tag in tags:
-        cmd.extend(["-t", tag])
+    if not cache_only:
+        for tag in tags:
+            cmd.extend(["-t", tag])
 
     for key, value in build_args.items():
         cmd.extend(["--build-arg", f"{key}={value}"])
@@ -51,14 +54,17 @@ def build_image(config_dir: Path, pipeline: dict, publish: dict) -> None:
     cache_url = cache.get("url")
     cache_type = cache.get("type")
     if cache_url and cache_type == "registry":
-        cache_ref = f"type=registry,ref={cache_url}"
+        cache_ref = f"type=registry,ref={cache_url},mode=max"
         cmd.extend(["--cache-from", cache_ref, "--cache-to", cache_ref])
 
-    push = bool(publish.get("push"))
-    if push:
-        cmd.append("--push")
+    if cache_only:
+        cmd.extend(["--output", "type=cacheonly"])
     else:
-        cmd.append("--load")
+        push = bool(publish.get("push"))
+        if push:
+            cmd.append("--push")
+        else:
+            cmd.append("--load")
 
     provenance = publish.get("provenance") or (
         isinstance(publish.get("attestations"), list)
@@ -74,6 +80,11 @@ def build_image(config_dir: Path, pipeline: dict, publish: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path)
+    parser.add_argument(
+        "--cache-only",
+        action="store_true",
+        help="Skip tagging/pushing images and only refresh the remote Buildx cache.",
+    )
     args = parser.parse_args()
 
     config_path = args.config.resolve()
@@ -95,7 +106,7 @@ def main() -> None:
             continue
         run_command(command, config_dir)
 
-    build_image(config_dir, pipeline, ci.get("publish", {}))
+    build_image(config_dir, pipeline, ci.get("publish", {}), cache_only=args.cache_only)
 
 
 if __name__ == "__main__":
