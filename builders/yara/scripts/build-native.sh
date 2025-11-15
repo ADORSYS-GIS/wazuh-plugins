@@ -17,34 +17,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-github_api_request() {
-    local url="$1"
-    shift || true
-    local -a curl_args=(-fsSL -H "Accept: application/vnd.github+json" -H "User-Agent: wazuh-plugins-builder")
-    local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
-    if [[ -n "${token}" ]]; then
-        curl_args+=(-H "Authorization: Bearer ${token}" -H "X-GitHub-Api-Version: 2022-11-28")
-    fi
-    curl "${curl_args[@]}" "${url}"
-}
-
-resolve_yara_version() {
-    local requested="${YARA_VERSION:-latest}"
-    if [[ "${requested}" == "latest" ]]; then
-        local api_response
-        if ! api_response=$(github_api_request "https://api.github.com/repos/VirusTotal/yara/releases/latest"); then
-            echo "Unable to query the YARA releases API" >&2
-            exit 1
-        fi
-        requested=$(awk -F '"' '/"tag_name"/ {print $4; exit}' <<<"${api_response}")
-    fi
-    if [[ -z "${requested}" ]]; then
-        echo "Unable to resolve a YARA version" >&2
-        exit 1
-    fi
-    printf '%s\n' "${requested}"
-}
-
 detect_make_jobs() {
     if [[ -n "${MAKE_JOBS:-}" ]]; then
         printf '%s\n' "${MAKE_JOBS}"
@@ -97,7 +69,7 @@ require_tools() {
         libtool_cmd="glibtoolize"
     fi
 
-    local required=(curl tar make gcc autoconf automake pkg-config flex bison "$libtool_cmd")
+    local required=(curl tar make gcc autoconf automake pkg-config flex bison python3 "$libtool_cmd")
     local missing=()
     for tool in "${required[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
@@ -158,7 +130,12 @@ main() {
     require_tools
     prepare_dest
 
-    local yara_version="$(resolve_yara_version)"
+    local resolver_script="${script_dir}/resolve_yara_version.py"
+    local yara_version
+    if ! yara_version=$(python3 "${resolver_script}"); then
+        echo "Unable to resolve a YARA version" >&2
+        exit 1
+    fi
     local jobs="$(detect_make_jobs)"
     build_dir="$(mktemp -d)"
 
