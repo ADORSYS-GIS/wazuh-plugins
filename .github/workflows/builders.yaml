@@ -134,10 +134,9 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
         run: |
-          .github/scripts/build_macos_artifact.py \
-            --config builders/${{ matrix.builder }}/config.yaml \
-            --triplet ${{ matrix.triplet }} \
-            --arch ${{ matrix.arch }}
+          .github/scripts/run_builder.py \
+            --artifact-triplet ${{ matrix.triplet }} \
+            builders/${{ matrix.builder }}/config.yaml
       - id: package
         run: |
           set -euo pipefail

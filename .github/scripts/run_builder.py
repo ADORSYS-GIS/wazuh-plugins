@@ -20,7 +20,11 @@ def run_command(command: str, cwd: Path) -> None:
 
 
 def build_image(
-    config_dir: Path, pipeline: dict, publish: dict, cache_only: bool = False
+    config_dir: Path,
+    pipeline: dict,
+    publish: dict,
+    cache_only: bool = False,
+    artifact_triplet: str | None = None,
 ) -> None:
     context = Path(pipeline.get("context", config_dir)).resolve()
     dockerfile = pipeline.get("dockerfile", "Dockerfile")
@@ -34,7 +38,9 @@ def build_image(
     artifacts_cfg = pipeline.get("artifacts", {})
     artifact_type = artifacts_cfg.get("type", "local")
     artifact_dest_cfg = artifacts_cfg.get("dest")
-    if artifact_dest_cfg:
+    if artifact_triplet:
+        artifact_dest = (config_dir / "dist" / artifact_triplet).resolve()
+    elif artifact_dest_cfg:
         artifact_dest = Path(artifact_dest_cfg)
         if not artifact_dest.is_absolute():
             artifact_dest = (config_dir / artifact_dest).resolve()
@@ -110,6 +116,10 @@ def main() -> None:
         action="store_true",
         help="Skip tagging/pushing images and only refresh the remote Buildx cache.",
     )
+    parser.add_argument(
+        "--artifact-triplet",
+        help="Override the artifact output directory to dist/<triplet>.",
+    )
     args = parser.parse_args()
 
     config_path = args.config.resolve()
@@ -131,7 +141,13 @@ def main() -> None:
             continue
         run_command(command, config_dir)
 
-    build_image(config_dir, pipeline, ci.get("publish", {}), cache_only=args.cache_only)
+    build_image(
+        config_dir,
+        pipeline,
+        ci.get("publish", {}),
+        cache_only=args.cache_only,
+        artifact_triplet=args.artifact_triplet,
+    )
 
 
 if __name__ == "__main__":

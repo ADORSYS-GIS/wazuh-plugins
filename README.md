@@ -36,7 +36,6 @@ A curated collection of automation and integration plugins that extend the [Wazu
 │       ├── version.txt
 │       └── release.txt
 ├── .github/
-│   ├── scripts/build_macos_artifact.py # Helper that simulates macOS builds for release packaging
 │   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
 │   ├── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
 │   └── workflows/builder-cache.yaml # Nightly job that refreshes Buildx caches for all builders
@@ -72,13 +71,12 @@ Some deployments prefer to ship companion services—such as [Suricata](https://
    Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation. The `artifacts` target
    exposes files placed under `/release` inside the Dockerfile and writes them to `builders/<name>/dist/linux-buildx/` so they
    can be zipped and published.
-3. **Simulate macOS payloads** – GitHub Actions fans out to dedicated macOS runners that call `.github/scripts/build_macos_artifact.py --config builders/<name>/config.yaml --triplet <mac target>` to generate placeholder binaries for the two supported triplets:
+3. **Build macOS payloads from the same config** – GitHub Actions fans out to dedicated macOS runners that call `.github/scripts/run_builder.py --artifact-triplet <mac target> builders/<name>/config.yaml`. The helper respects the exact same `config.yaml` that Linux uses, executes the declared lint/test/build steps, and writes artifacts under `builders/<name>/dist/<triplet>/`. The two supported triplets are:
    - `macos-13` / `amd64` → `macos-amd64`
    - `macos-14` / `arm64` → `macos-arm64`
-   These artifacts live under `builders/<name>/dist/<triplet>/` so they can be packaged alongside the Linux Buildx output.
 4. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `RULE_BUNDLE`) inside `builders/<name>/README.md` so users know how to customize the resulting bundle.
-5. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into `dist/linux-buildx/`. `.github/scripts/build_macos_artifact.py` mirrors the metadata to produce per-triplet macOS payloads under `dist/<triplet>/`.
-6. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx on Ubuntu to produce the `linux-buildx` archive, and fans out to `macos-13` and `macos-14` runners (amd64 and arm64 respectively) to invoke `build_macos_artifact.py`. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to refresh Buildx caches stored under `ghcr.io/adorsys-gis/wazuh-plugins-<name>/cache`, keeping future builds quick without publishing runtime images.
+5. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into `dist/<triplet>/` whether the run targets Linux (`linux-buildx`) or macOS (`macos-*`).
+6. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx on Ubuntu to produce the `linux-buildx` archive, and fans out to `macos-13` and `macos-14` runners (amd64 and arm64 respectively) that invoke `run_builder.py --artifact-triplet <triplet>`. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to refresh Buildx caches stored under `ghcr.io/adorsys-gis/wazuh-plugins-<name>/cache`, keeping future builds quick without publishing runtime images.
 
 > **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the Buildx workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
 
