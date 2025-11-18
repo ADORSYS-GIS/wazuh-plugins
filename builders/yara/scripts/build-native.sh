@@ -32,6 +32,7 @@ ensure_linux_dependencies() {
         libpcre2-dev
         libmagic-dev
         libjansson-dev
+        libprotobuf-c-dev
         protobuf-c-compiler
     )
 
