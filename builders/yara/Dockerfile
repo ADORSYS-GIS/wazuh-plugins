@@ -62,25 +62,26 @@ RUN set -eux; \
     printf 'YARA_VERSION=%s\nRULE_BUNDLE=%s\n' "$RESOLVED_VERSION" "$RULE_BUNDLE" > /workspace/yara/BUILDINFO.txt; \
     printf "# Wazuh Plugins YARA bundle\nBuilt from %s\n" "$RESOLVED_VERSION" > /workspace/yara/README.txt
 
-RUN set -euxo pipefail; \
-    RESOLVED_VERSION="$(cat /tmp/YARA_VERSION)"; \
-    apk add --no-cache --virtual .sbom-deps curl tar; \
-    OS_NAME="linux"; \
-    ARCH_NAME="$(uname -m)"; \
-    case "${ARCH_NAME}" in \
-        x86_64|amd64) ARCH_NAME="amd64" ;; \
-        aarch64|arm64) ARCH_NAME="arm64" ;; \
-    esac; \
-    OUTBASE="yara-${RESOLVED_VERSION}-${OS_NAME}-${ARCH_NAME}"; \
-    DIST_DIR="/workspace/dist"; \
-    ARTIFACT_ROOT="${DIST_DIR}/${OUTBASE}"; \
-    SBOM_DIR="${ARTIFACT_ROOT}/SBOM"; \
-    mkdir -p "${SBOM_DIR}" "${DIST_DIR}"; \
-    cp -R /workspace/yara/. "${ARTIFACT_ROOT}/"; \
-    curl -sSfL "https://raw.githubusercontent.com/anchore/syft/main/install.sh" | sh -s -- -b /usr/local/bin "${SYFT_VERSION}"; \
-    syft "dir:${ARTIFACT_ROOT}" -o spdx-json > "${SBOM_DIR}/${OUTBASE}.sbom.spdx.json"; \
-    syft "dir:${ARTIFACT_ROOT}" -o cyclonedx-json > "${SBOM_DIR}/${OUTBASE}.sbom.cdx.json"; \
-    cat > "${ARTIFACT_ROOT}/${OUTBASE}.pom.json" <<EOF
+RUN <<'EOF'
+set -euxo pipefail
+RESOLVED_VERSION="$(cat /tmp/YARA_VERSION)"
+apk add --no-cache --virtual .sbom-deps curl tar
+OS_NAME="linux"
+ARCH_NAME="$(uname -m)"
+case "${ARCH_NAME}" in
+    x86_64|amd64) ARCH_NAME="amd64" ;;
+    aarch64|arm64) ARCH_NAME="arm64" ;;
+esac
+OUTBASE="yara-${RESOLVED_VERSION}-${OS_NAME}-${ARCH_NAME}"
+DIST_DIR="/workspace/dist"
+ARTIFACT_ROOT="${DIST_DIR}/${OUTBASE}"
+SBOM_DIR="${ARTIFACT_ROOT}/SBOM"
+mkdir -p "${SBOM_DIR}" "${DIST_DIR}"
+cp -R /workspace/yara/. "${ARTIFACT_ROOT}/"
+curl -sSfL "https://raw.githubusercontent.com/anchore/syft/main/install.sh" | sh -s -- -b /usr/local/bin "${SYFT_VERSION}"
+syft "dir:${ARTIFACT_ROOT}" -o spdx-json > "${SBOM_DIR}/${OUTBASE}.sbom.spdx.json"
+syft "dir:${ARTIFACT_ROOT}" -o cyclonedx-json > "${SBOM_DIR}/${OUTBASE}.sbom.cdx.json"
+cat > "${ARTIFACT_ROOT}/${OUTBASE}.pom.json" <<JSON
 {
   "artifact": "${OUTBASE}",
   "version": "${RESOLVED_VERSION}",
@@ -92,14 +93,15 @@ RUN set -euxo pipefail; \
     "image": "alpine:3.19"
   }
 }
+JSON
+tar -czf "${DIST_DIR}/${OUTBASE}.tar.gz" -C "${DIST_DIR}" "${OUTBASE}"
+{
+  sha256sum "${DIST_DIR}/${OUTBASE}.tar.gz"
+  sha256sum "${SBOM_DIR}/${OUTBASE}.sbom.spdx.json"
+  sha256sum "${SBOM_DIR}/${OUTBASE}.sbom.cdx.json"
+  sha256sum "${ARTIFACT_ROOT}/${OUTBASE}.pom.json"
+} > "${DIST_DIR}/${OUTBASE}.sha256.txt"
 EOF
-    tar -czf "${DIST_DIR}/${OUTBASE}.tar.gz" -C "${DIST_DIR}" "${OUTBASE}"; \
-    {
-      sha256sum "${DIST_DIR}/${OUTBASE}.tar.gz";
-      sha256sum "${SBOM_DIR}/${OUTBASE}.sbom.spdx.json";
-      sha256sum "${SBOM_DIR}/${OUTBASE}.sbom.cdx.json";
-      sha256sum "${ARTIFACT_ROOT}/${OUTBASE}.pom.json";
-    } > "${DIST_DIR}/${OUTBASE}.sha256.txt"
 
 FROM scratch AS artifacts
 COPY --from=builder /workspace/dist/ /release/
