@@ -210,6 +210,50 @@ package_release() {
     } > "${checksum_file_path}"
 }
 
+should_bundle_dep() {
+    local lib_name
+    lib_name="$(basename "$1")"
+
+    case "${lib_name}" in
+        linux-vdso.so.*|ld-linux*.so*|libc.so.*|libm.so.*|libpthread.so.*|libdl.so.*|librt.so.*|libgcc_s.so.*|libstdc++.so.*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+bundle_runtime_dependencies() {
+    local release_root="${dest}/release"
+    local lib_dir="${release_root}/lib"
+    local bins=("${release_root}/bin/yara" "${release_root}/bin/yarac")
+
+    mkdir -p "${lib_dir}"
+
+    for bin in "${bins[@]}"; do
+        [[ -x "${bin}" ]] || continue
+
+        while IFS= read -r dep; do
+            [[ -z "${dep}" || ! -f "${dep}" ]] && continue
+            should_bundle_dep "${dep}" || continue
+
+            local resolved base_real base_link
+            resolved="$(realpath "${dep}")"
+            base_real="$(basename "${resolved}")"
+            base_link="$(basename "${dep}")"
+
+            if [[ ! -f "${lib_dir}/${base_real}" ]]; then
+                cp "${resolved}" "${lib_dir}/"
+            fi
+
+            if [[ "${base_link}" != "${base_real}" && ! -f "${lib_dir}/${base_link}" ]]; then
+                ln -sf "${base_real}" "${lib_dir}/${base_link}"
+            fi
+        done < <(ldd "${bin}" | awk '/=>/ {print $(NF-1)} !/=>/ && $1 ~ /^\// {print $1}')
+    done
+}
+
 install_with_package_manager() {
     local missing_tools=("$@")
     if [[ ${#missing_tools[@]} -eq 0 ]]; then
@@ -361,6 +405,7 @@ main() {
     make install
     popd >/dev/null
 
+    bundle_runtime_dependencies
     install_rules_and_scripts
     write_metadata "${yara_version}"
 
