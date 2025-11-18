@@ -347,7 +347,7 @@ main() {
     if [[ "$(uname -s)" == "Darwin" ]]; then
         rpath_flag="-Wl,-rpath,@loader_path/../lib -Wl,-install_name,@rpath/libyara.dylib"
     else
-        rpath_flag="-Wl,-rpath,\\$ORIGIN/../lib"
+        rpath_flag='-Wl,-rpath,$ORIGIN/../lib'
     fi
 
     local configure_args=(

@@ -114,12 +114,12 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-13, macos-14]
+        os: [macos-intel, macos-latest]
         include:
-          - os: macos-13
+          - os: macos-intel
             arch: amd64
             triplet: macos-amd64
-          - os: macos-14
+          - os: macos-latest
             arch: arm64
             triplet: macos-arm64
     runs-on: ${{ matrix.os }}
@@ -137,7 +137,6 @@ jobs:
       - name: Build ${{ matrix.triplet }} artifact
         run: |
           .github/scripts/run_builder.py \
-            --builder-mode native \
             --artifact-triplet ${{ matrix.triplet }} \
             builders/${{ matrix.builder }}/config.yaml
       - id: package
