@@ -37,8 +37,7 @@ A curated collection of automation and integration plugins that extend the [Wazu
 │       └── release.txt
 ├── .github/
 │   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
-│   ├── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
-│   └── workflows/builder-cache.yaml # Nightly job that refreshes Buildx caches for all builders
+│   └── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
 └── README.md
 ```
 
@@ -60,25 +59,15 @@ A curated collection of automation and integration plugins that extend the [Wazu
 Some deployments prefer to ship companion services—such as [Suricata](https://suricata.io/) for IDS or [Yara](https://virustotal.github.io/yara/) for file scanning—next to Wazuh so detections and enrichments stay close to the data plane. These builds live under `builders/<appliance>` and follow a shared contract so additional tools can be onboarded without rethinking the layout.
 
 1. **Place Docker assets** – Drop the `Dockerfile`, helper scripts, and configuration templates inside `builders/<name>/`. Keep runtime artifacts (rulesets, signatures, etc.) versioned so CI can reproduce the image. The Suricata and Yara folders already contain fake Dockerfiles, entrypoints, and rule packs to illustrate how supporting files should be laid out.
-2. **Use Docker Buildx** – Each appliance should be built via Buildx to support multi-architecture deployments **and** to emit binaries that later get attached to GitHub Releases. A canonical workflow that mirrors CI looks like:
-   ```bash
-   docker buildx create --name wazuh-plugins --use
-   docker buildx build builders/suricata \
-       --platform linux/amd64,linux/arm64 \
-       --target artifacts \
-       --output type=local,dest=builders/suricata/dist/linux-buildx
-   ```
-   Replace `suricata` with `yara` (or the name of any future appliance) to reuse the same invocation. The `artifacts` target
-   exposes files placed under `/release` inside the Dockerfile and writes them to `builders/<name>/dist/linux-buildx/` so they
-   can be zipped and published.
-3. **Build macOS payloads from the same config** – GitHub Actions fans out to dedicated macOS runners that call `.github/scripts/run_builder.py --builder-mode native --artifact-triplet <mac target> builders/<name>/config.yaml`. The helper respects the exact same `config.yaml` that Linux uses, executes the declared lint/test/build steps, and writes artifacts under `builders/<name>/dist/<triplet>/`. Native builds rely on a `native_build_script` (defaulting to `scripts/build-native.sh`) that receives `ARTIFACT_DEST`, `ARTIFACT_TRIPLET`, and `PIPELINE_VERSION` so the same source tree can be packaged per platform without Docker. The two supported triplets are:
+2. **Run native builds** – Each appliance is compiled natively per target architecture using the shared `native_build_script` (defaulting to `scripts/build-native.sh`). The helper receives `ARTIFACT_DEST`, `ARTIFACT_TRIPLET`, and `PIPELINE_VERSION` so the same source tree can be packaged per platform without Docker. Linux artifacts land in `builders/<name>/dist/linux-amd64` and `builders/<name>/dist/linux-arm64` when run on Ubuntu 24.04 amd64 and arm runners respectively.
+3. **Build macOS payloads from the same config** – GitHub Actions fans out to dedicated macOS runners that call `.github/scripts/run_builder.py --artifact-triplet <mac target> builders/<name>/config.yaml`. The helper respects the exact same `config.yaml` that Linux uses, executes the declared lint/test/build steps, and writes artifacts under `builders/<name>/dist/<triplet>/`. The two supported triplets are:
    - `macos-13` / `amd64` → `macos-amd64`
    - `macos-14` / `arm64` → `macos-arm64`
 4. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `RULE_BUNDLE`) inside `builders/<name>/README.md` so users know how to customize the resulting bundle.
-5. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into `dist/<triplet>/` whether the run targets Linux (`linux-buildx`) or macOS (`macos-*`).
-6. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, provisions Docker Buildx on Ubuntu to produce the `linux-buildx` archive, and fans out to `macos-13` and `macos-14` runners (amd64 and arm64 respectively) that invoke `run_builder.py --builder-mode native --artifact-triplet <triplet>`. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`. A companion workflow (`.github/workflows/builder-cache.yaml`) runs nightly or on demand with `--cache-only` to refresh Buildx caches stored under `ghcr.io/adorsys-gis/wazuh-plugins-<name>/cache`, keeping future builds quick without publishing runtime images.
+5. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into `dist/<triplet>/` whether the run targets Linux (`linux-*`) or macOS (`macos-*`).
+6. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, runs native builds on `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm` (arm64), and fans out to `macos-13` and `macos-14` runners. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`.
 
-> **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the Buildx workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
+> **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the native workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
 
 ## Configuration conventions
 

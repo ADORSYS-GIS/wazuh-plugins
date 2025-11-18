@@ -43,80 +43,6 @@ def clean_artifact_dest(artifact_dest: Path) -> None:
     artifact_dest.mkdir(parents=True, exist_ok=True)
 
 
-def build_with_buildx(
-    config_dir: Path,
-    pipeline: dict,
-    publish: dict,
-    cache_only: bool,
-    artifact_dest: Path,
-    version: str,
-) -> None:
-    context = Path(pipeline.get("context", config_dir)).resolve()
-    dockerfile = pipeline.get("dockerfile", "Dockerfile")
-    dockerfile_path = (config_dir / dockerfile).resolve()
-    target = pipeline.get("target")
-
-    artifacts_cfg = pipeline.get("artifacts", {})
-    artifact_type = artifacts_cfg.get("type", "local")
-
-    if not cache_only and artifact_type == "local":
-        clean_artifact_dest(artifact_dest)
-
-    tags = [tag.replace("${VERSION}", version) for tag in pipeline.get("tags", [])]
-    platforms = pipeline.get("platforms", ["linux/amd64"])
-    build_args = pipeline.get("build_args", {})
-    cache = pipeline.get("cache", {})
-
-    cmd = [
-        "docker",
-        "buildx",
-        "build",
-        str(context),
-        "--file",
-        str(dockerfile_path),
-        "--platform",
-        ",".join(platforms),
-    ]
-
-    if target:
-        cmd.extend(["--target", target])
-
-    if not cache_only:
-        for tag in tags:
-            cmd.extend(["-t", tag])
-
-    for key, value in build_args.items():
-        cmd.extend(["--build-arg", f"{key}={value}"])
-
-    cache_url = cache.get("url")
-    cache_type = cache.get("type")
-    if cache_url and cache_type == "registry":
-        cache_ref = f"type=registry,ref={cache_url},mode=max"
-        cmd.extend(["--cache-from", cache_ref, "--cache-to", cache_ref])
-
-    if cache_only:
-        cmd.extend(["--output", "type=cacheonly"])
-    else:
-        output_arg = artifacts_cfg.get("output")
-        if output_arg:
-            cmd.extend(["--output", output_arg])
-        else:
-            cmd.extend(["--output", f"type={artifact_type},dest={artifact_dest}"])
-
-        if bool(publish.get("push")):
-            cmd.append("--push")
-
-    provenance = publish.get("provenance") or (
-        isinstance(publish.get("attestations"), list)
-        and "provenance" in publish["attestations"]
-    )
-    if provenance:
-        cmd.extend(["--provenance", "true"])
-
-    log("Executing docker buildx pipeline")
-    subprocess.run(cmd, check=True)
-
-
 def build_native(
     config_dir: Path,
     pipeline: dict,
@@ -149,18 +75,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path)
     parser.add_argument(
-        "--cache-only",
-        action="store_true",
-        help="Skip tagging/pushing images and only refresh the remote Buildx cache.",
-    )
-    parser.add_argument(
         "--artifact-triplet",
         help="Override the artifact output directory to dist/<triplet>.",
-    )
-    parser.add_argument(
-        "--builder-mode",
-        choices=["docker-buildx", "native"],
-        help="Force a builder mode instead of using the value defined in the pipeline.",
     )
     args = parser.parse_args()
 
@@ -175,7 +91,7 @@ def main() -> None:
     version = version_path.read_text().strip()
     artifacts_cfg = pipeline.get("artifacts", {})
     artifact_dest = resolve_artifact_dest(config_dir, artifacts_cfg, args.artifact_triplet)
-    builder_mode = args.builder_mode or pipeline.get("builder", "docker-buildx")
+    builder_mode = pipeline.get("builder", "native")
 
     for command in ci.get("lint", []):
         run_command(command, config_dir)
@@ -189,23 +105,16 @@ def main() -> None:
             continue
         run_command(command, config_dir)
 
-    if builder_mode == "native":
-        build_native(
-            config_dir,
-            pipeline,
-            artifact_dest,
-            version,
-            args.artifact_triplet,
-        )
-    else:
-        build_with_buildx(
-            config_dir,
-            pipeline,
-            ci.get("publish", {}),
-            cache_only=args.cache_only,
-            artifact_dest=artifact_dest,
-            version=version,
-        )
+    if builder_mode != "native":
+        raise ValueError(f"Unsupported builder mode '{builder_mode}'. Only native builds are supported.")
+
+    build_native(
+        config_dir,
+        pipeline,
+        artifact_dest,
+        version,
+        args.artifact_triplet,
+    )
 
 
 if __name__ == "__main__":
