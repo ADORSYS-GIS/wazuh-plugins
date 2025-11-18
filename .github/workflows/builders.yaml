@@ -47,22 +47,21 @@ jobs:
   build:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
-    runs-on: ubuntu-latest
-    env:
-      LINUX_TRIPLET: linux-buildx
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+      matrix:
+        builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+            triplet: linux-amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            triplet: linux-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Python environment
         shell: bash
         run: |
@@ -72,13 +71,16 @@ jobs:
           python -m pip install pyyaml
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Execute ${{ matrix.builder }} pipeline
-        run: .github/scripts/run_builder.py ${{ matrix.config }}
+      - name: Build ${{ matrix.triplet }} artifact
+        run: |
+          .github/scripts/run_builder.py \
+            --artifact-triplet ${{ matrix.triplet }} \
+            builders/${{ matrix.builder }}/config.yaml
       - id: package
         run: |
           set -euo pipefail
           builder="${{ matrix.builder }}"
-          triplet="${LINUX_TRIPLET}"
+          triplet="${{ matrix.triplet }}"
           release_file="builders/${builder}/release.txt"
           version=$(cat "${release_file}")
           artifact_dir="builders/${builder}/dist/${triplet}"
@@ -88,10 +90,10 @@ jobs:
           tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
-      - name: Upload ${{ matrix.builder }} artifact
+      - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ env.LINUX_TRIPLET }}
+          name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
           path: artifacts/${{ steps.package.outputs.archive }}
       - name: Publish ${{ matrix.builder }} release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -112,12 +114,12 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-13, macos-14]
+        os: [macos-intel, macos-latest]
         include:
-          - os: macos-13
+          - os: macos-intel
             arch: amd64
             triplet: macos-amd64
-          - os: macos-14
+          - os: macos-latest
             arch: arm64
             triplet: macos-arm64
     runs-on: ${{ matrix.os }}
@@ -135,7 +137,6 @@ jobs:
       - name: Build ${{ matrix.triplet }} artifact
         run: |
           .github/scripts/run_builder.py \
-            --builder-mode native \
             --artifact-triplet ${{ matrix.triplet }} \
             builders/${{ matrix.builder }}/config.yaml
       - id: package

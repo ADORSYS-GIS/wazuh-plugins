@@ -1,24 +1,12 @@
 pipeline:
   name: suricata
-  description: Build and publish the Suricata IDS companion appliance with multi-arch Docker Buildx.
+  description: Build and publish the Suricata IDS companion appliance with multi-arch native builds.
   version_file: version.txt
   release_file: release.txt
-  builder: docker-buildx
-  context: builders/suricata
-  dockerfile: Dockerfile
-  target: artifacts
+  builder: native
   native_build_script: scripts/build-native.sh
-  platforms:
-    - linux/amd64
-    - linux/arm64
-  build_args:
-    SURICATA_VERSION: "6.0.10"
-    RULESET_URL: https://example.com/rules.tar.gz
   artifacts:
-    dest: dist/linux-buildx
-  cache:
-    type: registry
-    url: ghcr.io/adorsys-gis/wazuh-plugins-suricata/cache:latest
+    dest: dist
 ci:
   lint:
     - echo "Validate Suricata configs"
