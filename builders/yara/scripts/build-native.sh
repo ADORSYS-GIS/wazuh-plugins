@@ -9,6 +9,51 @@ version="${PIPELINE_VERSION:-dev}"
 rule_bundle="${RULE_BUNDLE:-${builder_root}/rules}"
 build_dir=""
 
+ensure_linux_dependencies() {
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        return 0
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1 || ! command -v apt-get >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local packages=(
+        build-essential
+        autoconf
+        automake
+        libtool
+        pkg-config
+        git
+        libssl-dev
+        libpcre2-dev
+        libmagic-dev
+        libjansson-dev
+        protobuf-c-compiler
+    )
+
+    sudo apt-get update -qq
+    sudo apt-get install -y "${packages[@]}"
+}
+
+ensure_macos_environment() {
+    if [[ "$(uname -s)" != "Darwin" ]] || ! command -v brew >/dev/null 2>&1; then
+        return 0
+    fi
+
+    brew update
+    brew install autoconf automake libtool pkg-config openssl@3 pcre2 libmagic jansson protobuf-c
+
+    local openssl_prefix libmagic_prefix pcre2_prefix
+    openssl_prefix="$(brew --prefix openssl@3)"
+    libmagic_prefix="$(brew --prefix libmagic)"
+    pcre2_prefix="$(brew --prefix pcre2)"
+
+    export PKG_CONFIG_PATH="${openssl_prefix}/lib/pkgconfig:${libmagic_prefix}/lib/pkgconfig:${pcre2_prefix}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export CPPFLAGS="-I${openssl_prefix}/include -I${libmagic_prefix}/include -I${pcre2_prefix}/include ${CPPFLAGS:-}"
+    export LDFLAGS="-L${openssl_prefix}/lib -L${libmagic_prefix}/lib -L${pcre2_prefix}/lib ${LDFLAGS:-}"
+}
+
 cleanup() {
     if [[ -n "${build_dir}" && -d "${build_dir}" ]]; then
         rm -rf "${build_dir}"
@@ -144,6 +189,8 @@ EOF_README
 }
 
 main() {
+    ensure_linux_dependencies
+    ensure_macos_environment
     require_tools
     require_libraries
     prepare_dest
