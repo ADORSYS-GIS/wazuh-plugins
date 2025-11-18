@@ -94,6 +94,23 @@ require_tools() {
     fi
 }
 
+require_libraries() {
+    local required_libs=(openssl libpcre2-8 libmagic jansson libprotobuf-c)
+    local missing=()
+
+    for lib in "${required_libs[@]}"; do
+        if ! pkg-config --exists "$lib"; then
+            missing+=("$lib")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "Missing required libraries (pkg-config): ${missing[*]}" >&2
+        echo "Ensure crypto, PCRE2, libmagic, jansson, and protobuf-c development packages are installed." >&2
+        exit 1
+    fi
+}
+
 prepare_dest() {
     rm -rf "${dest}"
     mkdir -p "${dest}/release"
@@ -128,6 +145,7 @@ EOF_README
 
 main() {
     require_tools
+    require_libraries
     prepare_dest
 
     local resolver_script="${script_dir}/resolve_yara_version.py"
@@ -153,7 +171,13 @@ main() {
         rpath_flag="-Wl,-rpath,\\$ORIGIN/../lib"
     fi
 
-    LDFLAGS="${LDFLAGS:-} ${rpath_flag}" ./configure --prefix="${dest}/release"
+    local configure_args=(
+        --prefix="${dest}/release"
+        --with-crypto
+        --enable-magic
+    )
+
+    LDFLAGS="${LDFLAGS:-} ${rpath_flag}" ./configure "${configure_args[@]}"
     make -j "${jobs}"
     make install
     popd >/dev/null
