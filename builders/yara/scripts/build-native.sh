@@ -145,7 +145,15 @@ main() {
 
     pushd "${build_dir}/src" >/dev/null
     ./bootstrap.sh
-    ./configure --prefix="${dest}/release"
+
+    local rpath_flag
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        rpath_flag="-Wl,-rpath,@loader_path/../lib -Wl,-install_name,@rpath/libyara.dylib"
+    else
+        rpath_flag="-Wl,-rpath,\\$ORIGIN/../lib"
+    fi
+
+    LDFLAGS="${LDFLAGS:-} ${rpath_flag}" ./configure --prefix="${dest}/release"
     make -j "${jobs}"
     make install
     popd >/dev/null

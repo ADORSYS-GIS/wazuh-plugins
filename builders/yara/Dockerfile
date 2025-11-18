@@ -43,7 +43,8 @@ RUN set -euxo pipefail; \
     if [ -z "$CORES" ]; then \
         CORES=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1); \
     fi; \
-    ./configure --prefix="${INSTALL_PREFIX}"; \
+    RPATH_FLAG="-Wl,-rpath,\\$ORIGIN/../lib"; \
+    LDFLAGS="${LDFLAGS:-} ${RPATH_FLAG}" ./configure --prefix="${INSTALL_PREFIX}"; \
     make -j "${CORES}"; \
     make install
 
