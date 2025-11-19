@@ -19,7 +19,7 @@ jobs:
       has_builders: ${{ steps.set-matrix.outputs.has_builders }}
       builder_names: ${{ steps.set-matrix.outputs.builder_names }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: set-matrix
         run: |
           python <<'PY'
@@ -61,7 +61,7 @@ jobs:
             triplet: linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python environment
         shell: bash
         run: |
@@ -77,31 +77,23 @@ jobs:
             --artifact-triplet ${{ matrix.triplet }} \
             builders/${{ matrix.builder }}/config.yaml
       - id: package
+        shell: bash
         run: |
-          set -euo pipefail
-          builder="${{ matrix.builder }}"
-          triplet="${{ matrix.triplet }}"
-          release_file="builders/${builder}/release.txt"
-          version=$(cat "${release_file}")
-          artifact_dir="builders/${builder}/dist/${triplet}"
-          package_dir="artifacts"
-          mkdir -p "${package_dir}"
-          archive_name="${builder}-${version}-${triplet}.tar.gz"
-          tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
+          .github/scripts/package_artifacts.sh \
+            "${{ matrix.builder }}" \
+            "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
-          path: artifacts/${{ steps.package.outputs.archive }}
+          path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: artifacts/${{ steps.package.outputs.archive }}
+          files: ${{ steps.package.outputs.files }}
           make_latest: true
           allowUpdates: true
           draft: false
@@ -114,7 +106,7 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-intel, macos-latest]
+        os: [macos-13, macos-latest]
         include:
           - os: macos-13
             arch: amd64
@@ -124,7 +116,7 @@ jobs:
             triplet: macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python environment
         shell: bash
         run: |
@@ -140,31 +132,23 @@ jobs:
             --artifact-triplet ${{ matrix.triplet }} \
             builders/${{ matrix.builder }}/config.yaml
       - id: package
+        shell: bash
         run: |
-          set -euo pipefail
-          builder="${{ matrix.builder }}"
-          triplet="${{ matrix.triplet }}"
-          release_file="builders/${builder}/release.txt"
-          version=$(cat "${release_file}")
-          artifact_dir="builders/${builder}/dist/${triplet}"
-          package_dir="artifacts"
-          mkdir -p "${package_dir}"
-          archive_name="${builder}-${version}-${triplet}.tar.gz"
-          tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
+          .github/scripts/package_artifacts.sh \
+            "${{ matrix.builder }}" \
+            "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
-          path: artifacts/${{ steps.package.outputs.archive }}
+          path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: artifacts/${{ steps.package.outputs.archive }}
+          files: ${{ steps.package.outputs.files }}
           make_latest: true
           allowUpdates: true
           draft: false
