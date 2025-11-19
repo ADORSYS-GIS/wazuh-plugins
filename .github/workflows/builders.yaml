@@ -116,18 +116,17 @@ jobs:
             echo "No release files to upload."
             exit 0
           fi
-          mapfile -t asset_paths <<< "${files}"
-          filtered=()
-          for path in "${asset_paths[@]}"; do
+          asset_paths=()
+          while IFS= read -r path; do
             if [[ -n "${path// }" ]]; then
-              filtered+=("$path")
+              asset_paths+=("$path")
             fi
-          done
-          if [[ ${#filtered[@]} -eq 0 ]]; then
+          done <<< "${files}"
+          if [[ ${#asset_paths[@]} -eq 0 ]]; then
             echo "No release files to upload."
             exit 0
           fi
-          gh release upload "${tag}" "${filtered[@]}" --clobber --repo "${{ github.repository }}"
+          gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
 
   build-macos:
     needs: discover
@@ -201,15 +200,14 @@ jobs:
             echo "No release files to upload."
             exit 0
           fi
-          mapfile -t asset_paths <<< "${files}"
-          filtered=()
-          for path in "${asset_paths[@]}"; do
+          asset_paths=()
+          while IFS= read -r path; do
             if [[ -n "${path// }" ]]; then
-              filtered+=("$path")
+              asset_paths+=("$path")
             fi
-          done
-          if [[ ${#filtered[@]} -eq 0 ]]; then
+          done <<< "${files}"
+          if [[ ${#asset_paths[@]} -eq 0 ]]; then
             echo "No release files to upload."
             exit 0
           fi
-          gh release upload "${tag}" "${filtered[@]}" --clobber --repo "${{ github.repository }}"
+          gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
