@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import os
+import shutil
 from pathlib import Path
 
 
@@ -13,24 +15,40 @@ def build_manifest(
     version: str,
     triplet: str,
     workspace: Path | None = None,
+    flatten_dir: Path | None = None,
 ) -> list[str]:
     stage_dir = stage_dir.resolve()
     workspace = workspace.resolve() if workspace else None
+    flatten_dir = flatten_dir.resolve() if flatten_dir else None
+
+    if flatten_dir:
+        if flatten_dir.exists():
+            shutil.rmtree(flatten_dir)
+        flatten_dir.mkdir(parents=True, exist_ok=True)
+
     entries: list[str] = []
     for path in sorted(stage_dir.rglob("*")):
         path = path.resolve()
+        if flatten_dir and flatten_dir in path.parents:
+            continue
         if not path.is_file():
             continue
         if path.name.endswith(".tar.gz"):
             continue
         rel = path.relative_to(stage_dir).as_posix()
         asset_name = f"{builder}-{version}-{triplet}-{rel.replace('/', '-')}"
-        if workspace:
-            rel_path = os.path.relpath(path, workspace)
-            fs_path = Path(rel_path)
+        output_path: Path
+        if flatten_dir:
+            dest = flatten_dir / asset_name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dest)
+            output_path = dest
         else:
-            fs_path = path
-        entries.append(f"{fs_path.as_posix()}#{asset_name}")
+            output_path = path
+        if workspace:
+            rel_path = os.path.relpath(output_path, workspace)
+            output_path = Path(rel_path)
+        entries.append(output_path.as_posix())
     return entries
 
 
@@ -46,6 +64,11 @@ def main() -> None:
         default=Path.cwd(),
         help="Workspace root to which file paths should be relative.",
     )
+    parser.add_argument(
+        "--flatten-dir",
+        type=Path,
+        help="Optional directory to copy files into with flattened names.",
+    )
     args = parser.parse_args()
 
     manifest = build_manifest(
@@ -54,6 +77,7 @@ def main() -> None:
         args.version,
         args.triplet,
         args.workspace,
+        args.flatten_dir,
     )
     print("\n".join(manifest))
 

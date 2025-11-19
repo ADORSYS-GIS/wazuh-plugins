@@ -16,6 +16,7 @@ artifact_dir="${repo_root}/builders/${builder}/dist/${triplet}"
 artifacts_root="${repo_root}/artifacts"
 stage_name="${builder}-${version}-${triplet}"
 stage_dir="${artifacts_root}/${stage_name}"
+release_assets_dir="${stage_dir}/release-assets"
 
 rm -rf "${stage_dir}"
 mkdir -p "${stage_dir}"
@@ -27,7 +28,8 @@ python "${repo_root}/.github/scripts/list_artifacts.py" \
   "${builder}" \
   "${version}" \
   "${triplet}" \
-  --workspace "${repo_root}" > "${manifest_file}"
+  --workspace "${repo_root}" \
+  --flatten-dir "${release_assets_dir}" > "${manifest_file}"
 
 {
   echo "version=${version}"

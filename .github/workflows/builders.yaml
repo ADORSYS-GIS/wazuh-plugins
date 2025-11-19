@@ -137,7 +137,7 @@ jobs:
             "${{ matrix.builder }}" \
             "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
           path: ${{ steps.package.outputs.artifact_path }}
