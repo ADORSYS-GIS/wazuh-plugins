@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 
@@ -13,8 +14,11 @@ def build_manifest(
     triplet: str,
     workspace: Path | None = None,
 ) -> list[str]:
+    stage_dir = stage_dir.resolve()
+    workspace = workspace.resolve() if workspace else None
     entries: list[str] = []
     for path in sorted(stage_dir.rglob("*")):
+        path = path.resolve()
         if not path.is_file():
             continue
         if path.name.endswith(".tar.gz"):
@@ -22,10 +26,8 @@ def build_manifest(
         rel = path.relative_to(stage_dir).as_posix()
         asset_name = f"{builder}-{version}-{triplet}-{rel.replace('/', '-')}"
         if workspace:
-            try:
-                fs_path = path.relative_to(workspace)
-            except ValueError:
-                fs_path = path
+            rel_path = os.path.relpath(path, workspace)
+            fs_path = Path(rel_path)
         else:
             fs_path = path
         entries.append(f"{fs_path.as_posix()}#{asset_name}")
