@@ -250,7 +250,13 @@ package_dmg() {
     printf '%s\n' "${dmg_out}"
 }
 
-prune_release_payload() { bh_prune_payload_directory "${release_root}"; }
+prune_payload_directory() {
+    bh_prune_payload_directory "$1"
+}
+
+prune_release_payload() {
+    prune_payload_directory "${release_root}"
+}
 
 package_release() {
     local builder_version="$1"

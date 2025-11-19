@@ -286,7 +286,7 @@ prune_release_payload() {
 require_tools() { bh_require_tools cmake ninja rustc cargo; }
 
 require_libraries() {
-    local required_libs=(libpcap libpcre2-8 yaml-0.1 jansson libmagic libnet liblz4 zlib)
+    local required_libs=(libpcap libpcre2-8 yaml-0.1 jansson libmagic liblz4 zlib)
     if [[ "${platform_os}" == "linux" ]]; then
         required_libs+=(libcap-ng)
     fi
@@ -386,6 +386,10 @@ build_suricata() {
     tar -xzf "${build_dir}/suricata.tar.gz" --strip-components=1 -C "${build_dir}/src"
 
     pushd "${build_dir}/src" >/dev/null
+
+    if [[ -x "./autogen.sh" ]]; then
+        ./autogen.sh
+    fi
 
     local configure_args=(
         --prefix="${release_root}"
