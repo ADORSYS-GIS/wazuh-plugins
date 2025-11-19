@@ -214,6 +214,17 @@ Description: ${description}
 EOF
     fi
 
+    # ensure there is a single trailing newline so additional fields remain in the same paragraph
+    python3 - <<'PY' "${staging_dir}/DEBIAN/control"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+text = text.rstrip("\n")
+path.write_text(text + "\n")
+PY
+
     cat >>"${staging_dir}/DEBIAN/control" <<EOF
 Version: ${deb_version}
 Architecture: ${deb_arch}

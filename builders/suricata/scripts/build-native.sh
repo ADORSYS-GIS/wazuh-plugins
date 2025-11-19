@@ -40,6 +40,7 @@ ensure_linux_dependencies() {
         ninja-build
         rustc
         cargo
+        cbindgen
         libpcre2-dev
         libpcre3-dev
         libyaml-dev
@@ -283,7 +284,7 @@ prune_release_payload() {
     prune_payload_directory "${release_root}"
 }
 
-require_tools() { bh_require_tools cmake ninja rustc cargo; }
+require_tools() { bh_require_tools cmake ninja rustc cargo cbindgen; }
 
 require_libraries() {
     local required_libs=(libpcap libpcre2-8 yaml-0.1 jansson libmagic liblz4 zlib)

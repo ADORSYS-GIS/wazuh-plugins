@@ -201,24 +201,15 @@ package_deb() {
     fi
 
     local control_tpl="${builder_root}/package-tpl.txt"
-    : > "${staging}/DEBIAN/control"
-    if [[ -f "${control_tpl}" ]]; then
-        cat "${control_tpl}" >> "${staging}/DEBIAN/control"
-    else
-        cat >>"${staging}/DEBIAN/control" <<'EOF'
-Package: yara
-Maintainer: Wazuh Plugins <info@adorsys.com>
-Section: utils
-Priority: optional
-Description: YARA rule scanner packaged for Wazuh deployments
-EOF
-    fi
-
-    cat >>"${staging}/DEBIAN/control" <<EOF
-Version: ${deb_version}
-Architecture: ${deb_arch}
-Installed-Size: ${installed_size:-0}
-EOF
+    bh_write_deb_control_from_template \
+        "${staging}" \
+        "${control_tpl}" \
+        "yara" \
+        "Wazuh Plugins <info@adorsys.com>" \
+        "YARA rule scanner packaged for Wazuh deployments" \
+        "${deb_version}" \
+        "${deb_arch}" \
+        "${installed_size}"
 
     local deb_out="${dest}/artifacts/${outbase}.deb"
     dpkg-deb --build "${staging}" "${deb_out}" >/dev/null
