@@ -28,7 +28,7 @@ python "${repo_root}/.github/scripts/list_artifacts.py" "${stage_dir}" "${builde
   echo "version=${version}"
   echo "artifact_name=${stage_name}"
   echo "artifact_path=${stage_dir}"
-  echo "files<<'EOF'"
+  echo "files<<EOF"
   cat "${manifest_file}"
   echo "EOF"
 } >> "${GITHUB_OUTPUT}"
