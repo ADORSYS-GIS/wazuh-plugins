@@ -11,6 +11,8 @@ build_dir=""
 syft_bin=""
 platform_os=""
 platform_arch=""
+release_name=""
+release_root=""
 
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
@@ -148,26 +150,34 @@ generate_pom() {
     local output="$1"
     local component="$2"
     local component_version="$3"
+    local upstream_version="${4:-}"
 
-    cat >"${output}" <<EOF
-{
-  "artifact": "${component}",
-  "version": "${component_version}",
-  "os": "${platform_os}",
-  "arch": "${platform_arch}",
-  "build": {
-    "timestamp": "$(date -u +%FT%TZ)",
-    "builder": "yara-native",
-    "triplet": "${triplet}",
-    "user": "$(whoami 2>/dev/null || echo unknown)"
-  },
-  "source": {
-    "repository": "${PIPELINE_REPO:-}",
-    "commit": "${PIPELINE_COMMIT:-}",
-    "ref": "${PIPELINE_REF:-}"
-  }
-}
-EOF
+    {
+        printf '{\n'
+        printf '  "artifact": "%s",\n' "${component}"
+        printf '  "version": "%s",\n' "${component_version}"
+        printf '  "os": "%s",\n' "${platform_os}"
+        printf '  "arch": "%s",\n' "${platform_arch}"
+        printf '  "build": {\n'
+        printf '    "timestamp": "%s",\n' "$(date -u +%FT%TZ)"
+        printf '    "builder": "yara-native",\n'
+        printf '    "triplet": "%s",\n' "${triplet}"
+        printf '    "user": "%s"\n' "$(whoami 2>/dev/null || echo unknown)"
+        printf '  },\n'
+        printf '  "source": {\n'
+        printf '    "repository": "%s",\n' "${PIPELINE_REPO:-}"
+        printf '    "commit": "%s",\n' "${PIPELINE_COMMIT:-}"
+        printf '    "ref": "%s"\n' "${PIPELINE_REF:-}"
+        printf '  }'
+        if [[ -n "${upstream_version}" ]]; then
+            printf ',\n  "upstream": {\n'
+            printf '    "yara": "%s"\n' "${upstream_version}"
+            printf '  }'
+        else
+            printf '\n'
+        fi
+        printf '\n}\n'
+    } >"${output}"
 }
 
 checksum_file() {
@@ -179,12 +189,101 @@ checksum_file() {
     fi
 }
 
+package_deb() {
+    local outbase="$1"
+    local release_dir="$2"
+    local component_version="$3"
+
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    if ! command -v dpkg-deb >/dev/null 2>&1; then
+        echo "dpkg-deb not available; skipping .deb packaging" >&2
+        return 0
+    fi
+
+    local staging="$(mktemp -d)"
+    mkdir -p "${staging}/opt/wazuh/yara" "${staging}/DEBIAN"
+
+    cp -R "${release_dir}/." "${staging}/opt/wazuh/yara/"
+
+    local deb_arch="${platform_arch}"
+    case "${deb_arch}" in
+        amd64|arm64) ;;
+        *) deb_arch="all" ;;
+    esac
+
+    local installed_size
+    installed_size=$(du -ks "${staging}/opt/wazuh/yara" | awk '{print $1}')
+
+    local deb_version="${component_version}"
+    if [[ "${deb_version}" == v* ]]; then
+        deb_version="${deb_version#v}"
+    fi
+
+    cat >"${staging}/DEBIAN/control" <<EOF
+Package: yara
+Version: ${deb_version}
+Architecture: ${deb_arch}
+Maintainer: Wazuh Plugins <packages@wazuh.com>
+Section: utils
+Priority: optional
+Installed-Size: ${installed_size:-0}
+Description: YARA rule scanner packaged for Wazuh deployments
+EOF
+
+    local deb_out="${dest}/artifacts/${outbase}.deb"
+    dpkg-deb --build "${staging}" "${deb_out}" >/dev/null
+    rm -rf "${staging}"
+    printf '%s\n' "${deb_out}"
+}
+
+package_dmg() {
+    local outbase="$1"
+    local release_dir="$2"
+
+    if [[ "${platform_os}" != "macos" ]]; then
+        return 0
+    fi
+
+    if ! command -v hdiutil >/dev/null 2>&1; then
+        echo "hdiutil not available; skipping .dmg packaging" >&2
+        return 0
+    fi
+
+    local staging="$(mktemp -d)"
+    mkdir -p "${staging}/${outbase}"
+
+    cp -R "${release_dir}/." "${staging}/${outbase}/"
+
+    local dmg_out="${dest}/artifacts/${outbase}.dmg"
+    hdiutil create -volname "${outbase}" -srcfolder "${staging}" -format UDZO -ov "${dmg_out}" >/dev/null
+    rm -rf "${staging}"
+    printf '%s\n' "${dmg_out}"
+}
+
+prune_payload_directory() {
+    local target_dir="$1"
+    [[ -d "${target_dir}" ]] || return 0
+
+    rm -rf "${target_dir}/include"
+    rm -rf "${target_dir}/share"
+    rm -rf "${target_dir}/lib/pkgconfig"
+    if [[ -d "${target_dir}/lib" ]]; then
+        find "${target_dir}/lib" -type f \( -name '*.a' -o -name '*.la' \) -delete
+    fi
+}
+
+prune_release_payload() {
+    prune_payload_directory "${release_root}"
+}
+
 package_release() {
-    local yara_version="$1"
+    local builder_version="$1"
+    local yara_version="$2"
 
-    detect_platform
-
-    local outbase="yara-${yara_version}-${platform_os}-${platform_arch}"
+    local outbase="${release_name:-yara-${builder_version}-${platform_os}-${platform_arch}}"
     local artifact_root="${dest}/artifacts/${outbase}"
     local sbom_dir="${artifact_root}/SBOM"
     local dist_dir="${dest}/artifacts"
@@ -195,18 +294,29 @@ package_release() {
     rm -rf "${artifact_root}"
     mkdir -p "${artifact_root}" "${sbom_dir}"
 
-    cp -R "${dest}/release/." "${artifact_root}/"
+    cp -R "${release_root}/." "${artifact_root}/"
+    prune_payload_directory "${artifact_root}"
 
     generate_sboms "${artifact_root}" "${sbom_dir}/${outbase}.sbom.spdx.json" "${sbom_dir}/${outbase}.sbom.cdx.json"
-    generate_pom "${pom_file}" "${outbase}" "${yara_version}"
+    generate_pom "${pom_file}" "${outbase}" "${builder_version}" "${yara_version}"
 
     (cd "${dist_dir}" && tar -czf "${tarball##*/}" "${outbase}")
+
+    local deb_pkg dmg_pkg
+    deb_pkg=$(package_deb "${outbase}" "${release_root}" "${builder_version}" || true)
+    dmg_pkg=$(package_dmg "${outbase}" "${release_root}" || true)
 
     {
         checksum_file "${tarball}"
         checksum_file "${sbom_dir}/${outbase}.sbom.spdx.json"
         checksum_file "${sbom_dir}/${outbase}.sbom.cdx.json"
         checksum_file "${pom_file}"
+        if [[ -n "${deb_pkg:-}" ]]; then
+            checksum_file "${deb_pkg}"
+        fi
+        if [[ -n "${dmg_pkg:-}" ]]; then
+            checksum_file "${dmg_pkg}"
+        fi
     } > "${checksum_file_path}"
 }
 
@@ -247,6 +357,14 @@ require_tools() {
     fi
 
     local required=(curl tar make gcc autoconf automake pkg-config flex bison python3 "$libtool_cmd")
+
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        required+=(dpkg-deb)
+    fi
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        required+=(hdiutil)
+    fi
     local missing=()
     for tool in "${required[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
@@ -290,11 +408,10 @@ require_libraries() {
 
 prepare_dest() {
     rm -rf "${dest}"
-    mkdir -p "${dest}/release"
+    mkdir -p "${release_root}"
 }
 
 install_rules_and_scripts() {
-    local release_root="${dest}/release"
     if [[ -d "${rule_bundle}" ]]; then
         mkdir -p "${release_root}/rules"
         cp -R "${rule_bundle}/." "${release_root}/rules/"
@@ -306,17 +423,18 @@ install_rules_and_scripts() {
 }
 
 write_metadata() {
-    local release_root="${dest}/release"
-    local yara_version="$1"
+    local builder_version="$1"
+    local yara_version="$2"
     cat >"${release_root}/BUILDINFO.txt" <<EOF_INFO
 # YARA native build
-PIPELINE_VERSION=${version}
+PIPELINE_VERSION=${builder_version}
 TRIPLET=${triplet}
 YARA_VERSION=${yara_version}
+RELEASE_NAME=${release_name}
 EOF_INFO
     cat >"${release_root}/README.txt" <<EOF_README
-YARA ${yara_version}
-This archive was produced by the Wazuh plugins builder for ${triplet}.
+Wazuh YARA package ${builder_version}
+Contains YARA upstream release ${yara_version} for ${platform_os}/${platform_arch}.
 EOF_README
 }
 
@@ -325,6 +443,9 @@ main() {
     ensure_macos_environment
     require_tools
     require_libraries
+    detect_platform
+    release_name="yara-${version}-${platform_os}-${platform_arch}"
+    release_root="${dest}/release/${release_name}"
     prepare_dest
 
     local resolver_script="${script_dir}/resolve_yara_version.py"
@@ -351,7 +472,7 @@ main() {
     fi
 
     local configure_args=(
-        --prefix="${dest}/release"
+        --prefix="${release_root}"
         --with-crypto
         --enable-magic
     )
@@ -361,10 +482,11 @@ main() {
     make install
     popd >/dev/null
 
+    prune_release_payload
     install_rules_and_scripts
-    write_metadata "${yara_version}"
+    write_metadata "${version}" "${yara_version}"
 
-    package_release "${yara_version}"
+    package_release "${version}" "${yara_version}"
 }
 
 main "$@"

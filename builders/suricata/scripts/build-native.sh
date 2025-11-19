@@ -8,6 +8,7 @@ version="${PIPELINE_VERSION:-dev}"
 syft_bin=""
 platform_os=""
 platform_arch=""
+release_root="${dest}/release"
 
 detect_platform() {
     case "$(uname -s)" in
@@ -106,28 +107,94 @@ checksum_file() {
     fi
 }
 
+package_deb() {
+    local outbase="$1"
+
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    if ! command -v dpkg-deb >/dev/null 2>&1; then
+        echo "dpkg-deb not available; skipping .deb packaging" >&2
+        return 0
+    fi
+
+    local staging="${dest}/deb-build"
+    rm -rf "${staging}"
+    mkdir -p "${staging}/opt/wazuh/suricata" "${staging}/DEBIAN"
+
+    cp -R "${release_root}/." "${staging}/opt/wazuh/suricata/"
+
+    local deb_arch="${platform_arch}"
+    case "${deb_arch}" in
+        amd64|arm64) ;;
+        *) deb_arch="all" ;;
+    esac
+
+    local installed_size
+    installed_size=$(du -ks "${staging}/opt/wazuh/suricata" | awk '{print $1}')
+
+    cat >"${staging}/DEBIAN/control" <<EOF
+Package: suricata
+Version: ${version}
+Architecture: ${deb_arch}
+Maintainer: Wazuh Plugins <packages@wazuh.com>
+Section: utils
+Priority: optional
+Installed-Size: ${installed_size:-0}
+Description: Suricata IDS companion packaged for Wazuh deployments
+EOF
+
+    local deb_out="${dest}/artifacts/${outbase}.deb"
+    dpkg-deb --build "${staging}" "${deb_out}" >/dev/null
+    printf '%s\n' "${deb_out}"
+}
+
+package_dmg() {
+    local outbase="$1"
+
+    if [[ "${platform_os}" != "macos" ]]; then
+        return 0
+    fi
+
+    if ! command -v hdiutil >/dev/null 2>&1; then
+        echo "hdiutil not available; skipping .dmg packaging" >&2
+        return 0
+    fi
+
+    local staging="${dest}/dmg-build"
+    rm -rf "${staging}"
+    mkdir -p "${staging}"
+
+    cp -R "${release_root}" "${staging}/suricata"
+
+    local dmg_out="${dest}/artifacts/${outbase}.dmg"
+    hdiutil create -volname "${outbase}" -srcfolder "${staging}" -format UDZO -ov "${dmg_out}" >/dev/null
+    printf '%s\n' "${dmg_out}"
+}
+
 prepare_release_layout() {
     rm -rf "${dest}"
-    mkdir -p "${dest}/release/bin" "${dest}/release/rules" "${dest}/release/custom-rules" "${dest}/release/scripts"
+    mkdir -p "${release_root}/bin" "${release_root}/rules" "${release_root}/custom-rules" "${release_root}/scripts"
 
-    cat >"${dest}/release/bin/suricata" <<'SCRIPT'
+    cat >"${release_root}/bin/suricata" <<'SCRIPT'
 #!/usr/bin/env bash
 echo "Suricata placeholder binary"
 SCRIPT
-    chmod +x "${dest}/release/bin/suricata"
+    chmod +x "${release_root}/bin/suricata"
 
-    cat >"${dest}/release/BUILDINFO.txt" <<EOF_INFO
+    cat >"${release_root}/BUILDINFO.txt" <<EOF_INFO
 # Suricata native build
 VERSION=${version}
 TRIPLET=${triplet}
 EOF_INFO
 
-    cp rules/sample.rules "${dest}/release/rules/sample.rules"
-    cp -R rules/. "${dest}/release/custom-rules/"
-    cp scripts/entrypoint.sh "${dest}/release/scripts/entrypoint.sh"
-    cp scripts/run-regression.sh "${dest}/release/scripts/run-regression.sh"
+    cp rules/sample.rules "${release_root}/rules/sample.rules"
+    cp -R rules/. "${release_root}/custom-rules/"
+    cp scripts/entrypoint.sh "${release_root}/scripts/entrypoint.sh"
+    cp scripts/run-regression.sh "${release_root}/scripts/run-regression.sh"
 
-    printf "# Native build artifacts for %s (%s)\n" "${PIPELINE_NAME:-suricata}" "${triplet}" > "${dest}/release/README.txt"
+    printf "# Native build artifacts for %s (%s)\n" "${PIPELINE_NAME:-suricata}" "${triplet}" > "${release_root}/README.txt"
 }
 
 package_release() {
@@ -144,18 +211,28 @@ package_release() {
     rm -rf "${artifact_root}"
     mkdir -p "${artifact_root}" "${sbom_dir}"
 
-    cp -R "${dest}/release/." "${artifact_root}/"
+    cp -R "${release_root}/." "${artifact_root}/"
 
     generate_sboms "${artifact_root}" "${sbom_dir}/${outbase}.sbom.spdx.json" "${sbom_dir}/${outbase}.sbom.cdx.json"
     generate_pom "${pom_file}" "${outbase}" "${version}"
 
     (cd "${dist_dir}" && tar -czf "${tarball##*/}" "${outbase}")
 
+    local deb_pkg dmg_pkg
+    deb_pkg=$(package_deb "${outbase}" || true)
+    dmg_pkg=$(package_dmg "${outbase}" || true)
+
     {
         checksum_file "${tarball}"
         checksum_file "${sbom_dir}/${outbase}.sbom.spdx.json"
         checksum_file "${sbom_dir}/${outbase}.sbom.cdx.json"
         checksum_file "${pom_file}"
+        if [[ -n "${deb_pkg:-}" ]]; then
+            checksum_file "${deb_pkg}"
+        fi
+        if [[ -n "${dmg_pkg:-}" ]]; then
+            checksum_file "${dmg_pkg}"
+        fi
     } > "${checksum_file_path}"
 }
 
