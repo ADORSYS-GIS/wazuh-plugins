@@ -11,7 +11,8 @@ build_dir=""
 syft_bin=""
 platform_os=""
 platform_arch=""
-release_root="${dest}/release"
+release_name=""
+release_root=""
 
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
@@ -149,26 +150,34 @@ generate_pom() {
     local output="$1"
     local component="$2"
     local component_version="$3"
+    local upstream_version="${4:-}"
 
-    cat >"${output}" <<EOF
-{
-  "artifact": "${component}",
-  "version": "${component_version}",
-  "os": "${platform_os}",
-  "arch": "${platform_arch}",
-  "build": {
-    "timestamp": "$(date -u +%FT%TZ)",
-    "builder": "yara-native",
-    "triplet": "${triplet}",
-    "user": "$(whoami 2>/dev/null || echo unknown)"
-  },
-  "source": {
-    "repository": "${PIPELINE_REPO:-}",
-    "commit": "${PIPELINE_COMMIT:-}",
-    "ref": "${PIPELINE_REF:-}"
-  }
-}
-EOF
+    {
+        printf '{\n'
+        printf '  "artifact": "%s",\n' "${component}"
+        printf '  "version": "%s",\n' "${component_version}"
+        printf '  "os": "%s",\n' "${platform_os}"
+        printf '  "arch": "%s",\n' "${platform_arch}"
+        printf '  "build": {\n'
+        printf '    "timestamp": "%s",\n' "$(date -u +%FT%TZ)"
+        printf '    "builder": "yara-native",\n'
+        printf '    "triplet": "%s",\n' "${triplet}"
+        printf '    "user": "%s"\n' "$(whoami 2>/dev/null || echo unknown)"
+        printf '  },\n'
+        printf '  "source": {\n'
+        printf '    "repository": "%s",\n' "${PIPELINE_REPO:-}"
+        printf '    "commit": "%s",\n' "${PIPELINE_COMMIT:-}"
+        printf '    "ref": "%s"\n' "${PIPELINE_REF:-}"
+        printf '  }'
+        if [[ -n "${upstream_version}" ]]; then
+            printf ',\n  "upstream": {\n'
+            printf '    "yara": "%s"\n' "${upstream_version}"
+            printf '  }'
+        else
+            printf '\n'
+        fi
+        printf '\n}\n'
+    } >"${output}"
 }
 
 checksum_file() {
@@ -244,8 +253,9 @@ package_dmg() {
     fi
 
     local staging="$(mktemp -d)"
+    mkdir -p "${staging}/${outbase}"
 
-    cp -R "${release_dir}" "${staging}/yara"
+    cp -R "${release_dir}/." "${staging}/${outbase}/"
 
     local dmg_out="${dest}/artifacts/${outbase}.dmg"
     hdiutil create -volname "${outbase}" -srcfolder "${staging}" -format UDZO -ov "${dmg_out}" >/dev/null
@@ -253,21 +263,27 @@ package_dmg() {
     printf '%s\n' "${dmg_out}"
 }
 
-prune_release_payload() {
-    rm -rf "${release_root}/include"
-    rm -rf "${release_root}/share"
-    rm -rf "${release_root}/lib/pkgconfig"
-    if [[ -d "${release_root}/lib" ]]; then
-        find "${release_root}/lib" -type f \( -name '*.a' -o -name '*.la' \) -delete
+prune_payload_directory() {
+    local target_dir="$1"
+    [[ -d "${target_dir}" ]] || return 0
+
+    rm -rf "${target_dir}/include"
+    rm -rf "${target_dir}/share"
+    rm -rf "${target_dir}/lib/pkgconfig"
+    if [[ -d "${target_dir}/lib" ]]; then
+        find "${target_dir}/lib" -type f \( -name '*.a' -o -name '*.la' \) -delete
     fi
 }
 
+prune_release_payload() {
+    prune_payload_directory "${release_root}"
+}
+
 package_release() {
-    local yara_version="$1"
+    local builder_version="$1"
+    local yara_version="$2"
 
-    detect_platform
-
-    local outbase="yara-${yara_version}-${platform_os}-${platform_arch}"
+    local outbase="${release_name:-yara-${builder_version}-${platform_os}-${platform_arch}}"
     local artifact_root="${dest}/artifacts/${outbase}"
     local sbom_dir="${artifact_root}/SBOM"
     local dist_dir="${dest}/artifacts"
@@ -279,14 +295,15 @@ package_release() {
     mkdir -p "${artifact_root}" "${sbom_dir}"
 
     cp -R "${release_root}/." "${artifact_root}/"
+    prune_payload_directory "${artifact_root}"
 
     generate_sboms "${artifact_root}" "${sbom_dir}/${outbase}.sbom.spdx.json" "${sbom_dir}/${outbase}.sbom.cdx.json"
-    generate_pom "${pom_file}" "${outbase}" "${yara_version}"
+    generate_pom "${pom_file}" "${outbase}" "${builder_version}" "${yara_version}"
 
     (cd "${dist_dir}" && tar -czf "${tarball##*/}" "${outbase}")
 
     local deb_pkg dmg_pkg
-    deb_pkg=$(package_deb "${outbase}" "${release_root}" "${yara_version}" || true)
+    deb_pkg=$(package_deb "${outbase}" "${release_root}" "${builder_version}" || true)
     dmg_pkg=$(package_dmg "${outbase}" "${release_root}" || true)
 
     {
@@ -406,16 +423,18 @@ install_rules_and_scripts() {
 }
 
 write_metadata() {
-    local yara_version="$1"
+    local builder_version="$1"
+    local yara_version="$2"
     cat >"${release_root}/BUILDINFO.txt" <<EOF_INFO
 # YARA native build
-PIPELINE_VERSION=${version}
+PIPELINE_VERSION=${builder_version}
 TRIPLET=${triplet}
 YARA_VERSION=${yara_version}
+RELEASE_NAME=${release_name}
 EOF_INFO
     cat >"${release_root}/README.txt" <<EOF_README
-YARA ${yara_version}
-This archive was produced by the Wazuh plugins builder for ${triplet}.
+Wazuh YARA package ${builder_version}
+Contains YARA upstream release ${yara_version} for ${platform_os}/${platform_arch}.
 EOF_README
 }
 
@@ -424,6 +443,9 @@ main() {
     ensure_macos_environment
     require_tools
     require_libraries
+    detect_platform
+    release_name="yara-${version}-${platform_os}-${platform_arch}"
+    release_root="${dest}/release/${release_name}"
     prepare_dest
 
     local resolver_script="${script_dir}/resolve_yara_version.py"
@@ -450,7 +472,7 @@ main() {
     fi
 
     local configure_args=(
-        --prefix="${dest}/release"
+        --prefix="${release_root}"
         --with-crypto
         --enable-magic
     )
@@ -462,9 +484,9 @@ main() {
 
     prune_release_payload
     install_rules_and_scripts
-    write_metadata "${yara_version}"
+    write_metadata "${version}" "${yara_version}"
 
-    package_release "${yara_version}"
+    package_release "${version}" "${yara_version}"
 }
 
 main "$@"
