@@ -16,21 +16,43 @@ artifact_dir="${repo_root}/builders/${builder}/dist/${triplet}"
 artifacts_root="${repo_root}/artifacts"
 stage_name="${builder}-${version}-${triplet}"
 stage_dir="${artifacts_root}/${stage_name}"
-release_assets_dir="${stage_dir}/release-assets"
+stage_rel="artifacts/${stage_name}"
+package_src="${artifact_dir}/artifacts"
 
 rm -rf "${stage_dir}"
 mkdir -p "${stage_dir}"
-rsync -a "${artifact_dir}/" "${stage_dir}/"
+
+if [[ ! -d "${package_src}" ]]; then
+  echo "Package artifacts directory not found: ${package_src}" >&2
+  exit 1
+fi
+
+shopt -s nullglob
+copied=0
+patterns=(
+  "*.tar.gz"
+  "*.sha256.txt"
+  "*.deb"
+  "*.dmg"
+)
+for pattern in "${patterns[@]}"; do
+  for file in "${package_src}"/${pattern}; do
+    cp "${file}" "${stage_dir}/"
+    copied=1
+  done
+done
+shopt -u nullglob
+
+if [[ "${copied}" -eq 0 ]]; then
+  echo "No packaged artifacts found in ${package_src}" >&2
+  exit 1
+fi
 
 manifest_file="$(mktemp)"
-python "${repo_root}/.github/scripts/list_artifacts.py" \
-  "${stage_dir}" \
-  "${builder}" \
-  "${version}" \
-  "${triplet}" \
-  --workspace "${repo_root}" \
-  --flatten-dir "${release_assets_dir}" > "${manifest_file}"
-
+(
+  cd "${repo_root}"
+  find "${stage_rel}" -maxdepth 1 -type f | LC_ALL=C sort > "${manifest_file}"
+)
 {
   echo "version=${version}"
   echo "artifact_name=${stage_name}"
