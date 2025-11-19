@@ -1,0 +1,6 @@
+Package: suricata
+Maintainer: Wazuh Plugins <info@adorsys.com>
+Section: utils
+Priority: optional
+Description: Suricata IDS companion packaged for Wazuh deployments
+

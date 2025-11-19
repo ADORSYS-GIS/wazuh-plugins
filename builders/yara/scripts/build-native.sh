@@ -4,15 +4,21 @@ set -euo pipefail
 triplet="${ARTIFACT_TRIPLET:-native}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 builder_root="$(cd "${script_dir}/.." && pwd)"
+common_dir="${builder_root}/../common"
+COMMON_HELPERS="${common_dir}/build-helpers.sh"
 dest="${ARTIFACT_DEST:-${builder_root}/dist/${triplet}}"
 version="${PIPELINE_VERSION:-dev}"
 rule_bundle="${RULE_BUNDLE:-${builder_root}/rules}"
 build_dir=""
-syft_bin=""
 platform_os=""
 platform_arch=""
 release_name=""
 release_root=""
+
+if [[ -f "${COMMON_HELPERS}" ]]; then
+    # shellcheck disable=SC1090
+    source "${COMMON_HELPERS}"
+fi
 
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
@@ -85,17 +91,9 @@ detect_make_jobs() {
 }
 
 detect_platform() {
-    case "$(uname -s)" in
-        Linux) platform_os="linux" ;;
-        Darwin) platform_os="macos" ;;
-        *) platform_os="unknown" ;;
-    esac
-
-    case "$(uname -m)" in
-        x86_64|amd64) platform_arch="amd64" ;;
-        aarch64|arm64) platform_arch="arm64" ;;
-        *) platform_arch="unknown" ;;
-    esac
+    bh_detect_platform
+    platform_os="${BH_PLATFORM_OS:-unknown}"
+    platform_arch="${BH_PLATFORM_ARCH:-unknown}"
 }
 
 ensure_syft() {
@@ -130,20 +128,7 @@ generate_sboms() {
     local scan_dir="$1"
     local spdx_out="$2"
     local cdx_out="$3"
-
-    ensure_syft
-
-    mkdir -p "$(dirname "${spdx_out}")" "$(dirname "${cdx_out}")"
-
-    local temp_spdx temp_cdx
-    temp_spdx="$(mktemp)"
-    temp_cdx="$(mktemp)"
-
-    "${syft_bin}" "dir:${scan_dir}" -o spdx-json > "${temp_spdx}"
-    "${syft_bin}" "dir:${scan_dir}" -o cyclonedx-json > "${temp_cdx}"
-
-    mv "${temp_spdx}" "${spdx_out}"
-    mv "${temp_cdx}" "${cdx_out}"
+    bh_generate_sboms "${dest}" "${scan_dir}" "${spdx_out}" "${cdx_out}"
 }
 
 generate_pom() {
@@ -180,14 +165,7 @@ generate_pom() {
     } >"${output}"
 }
 
-checksum_file() {
-    local file="$1"
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "${file}"
-    else
-        shasum -a 256 "${file}"
-    fi
-}
+checksum_file() { bh_checksum_file "$1"; }
 
 package_deb() {
     local outbase="$1"
@@ -272,21 +250,7 @@ package_dmg() {
     printf '%s\n' "${dmg_out}"
 }
 
-prune_payload_directory() {
-    local target_dir="$1"
-    [[ -d "${target_dir}" ]] || return 0
-
-    rm -rf "${target_dir}/include"
-    rm -rf "${target_dir}/share"
-    rm -rf "${target_dir}/lib/pkgconfig"
-    if [[ -d "${target_dir}/lib" ]]; then
-        find "${target_dir}/lib" -type f \( -name '*.a' -o -name '*.la' \) -delete
-    fi
-}
-
-prune_release_payload() {
-    prune_payload_directory "${release_root}"
-}
+prune_release_payload() { bh_prune_payload_directory "${release_root}"; }
 
 package_release() {
     local builder_version="$1"
@@ -329,90 +293,11 @@ package_release() {
     } > "${checksum_file_path}"
 }
 
-install_with_package_manager() {
-    local missing_tools=("$@")
-    if [[ ${#missing_tools[@]} -eq 0 ]]; then
-        return 0
-    fi
-
-    if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
-        local packages=()
-        for tool in "${missing_tools[@]}"; do
-            case "$tool" in
-                pkg-config)
-                    packages+=("pkg-config")
-                    ;;
-                glibtoolize|libtoolize)
-                    packages+=("libtool")
-                    ;;
-                *)
-                    packages+=("$tool")
-                    ;;
-            esac
-        done
-        if [[ ${#packages[@]} -gt 0 ]]; then
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install "${packages[@]}"
-        fi
-        return 0
-    fi
-
-    return 1
-}
-
-require_tools() {
-    local libtool_cmd="libtoolize"
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        libtool_cmd="glibtoolize"
-    fi
-
-    local required=(curl tar make gcc autoconf automake pkg-config flex bison python3 "$libtool_cmd")
-
-    if [[ "$(uname -s)" == "Linux" ]]; then
-        required+=(dpkg-deb)
-    fi
-
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        required+=(hdiutil)
-    fi
-    local missing=()
-    for tool in "${required[@]}"; do
-        if ! command -v "$tool" >/dev/null 2>&1; then
-            missing+=("$tool")
-        fi
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        if install_with_package_manager "${missing[@]}"; then
-            missing=()
-            for tool in "${required[@]}"; do
-                if ! command -v "$tool" >/dev/null 2>&1; then
-                    missing+=("$tool")
-                fi
-            done
-        fi
-    fi
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing build dependencies: ${missing[*]}" >&2
-        exit 1
-    fi
-}
+require_tools() { bh_require_tools flex bison; }
 
 require_libraries() {
     local required_libs=(openssl libpcre2-8 libmagic jansson libprotobuf-c)
-    local missing=()
-
-    for lib in "${required_libs[@]}"; do
-        if ! pkg-config --exists "$lib"; then
-            missing+=("$lib")
-        fi
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing required libraries (pkg-config): ${missing[*]}" >&2
-        echo "Ensure crypto, PCRE2, libmagic, jansson, and protobuf-c development packages are installed." >&2
-        exit 1
-    fi
+    bh_require_libraries "${required_libs[@]}"
 }
 
 prepare_dest() {

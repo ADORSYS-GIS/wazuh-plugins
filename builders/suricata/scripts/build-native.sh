@@ -4,6 +4,8 @@ set -euo pipefail
 triplet="${ARTIFACT_TRIPLET:-native}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 builder_root="$(cd "${script_dir}/.." && pwd)"
+common_dir="${builder_root}/../common"
+COMMON_HELPERS="${common_dir}/build-helpers.sh"
 dest="${ARTIFACT_DEST:-${builder_root}/dist/${triplet}}"
 version="${PIPELINE_VERSION:-dev}"
 rule_bundle="${RULE_BUNDLE:-${builder_root}/rules}"
@@ -13,6 +15,11 @@ platform_os=""
 platform_arch=""
 release_name=""
 release_root=""
+
+if [[ -f "${COMMON_HELPERS}" ]]; then
+    # shellcheck disable=SC1090
+    source "${COMMON_HELPERS}"
+fi
 
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
@@ -92,34 +99,12 @@ cleanup() {
 
 trap cleanup EXIT
 
-detect_make_jobs() {
-    if [[ -n "${MAKE_JOBS:-}" ]]; then
-        printf '%s\n' "${MAKE_JOBS}"
-        return
-    fi
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    elif [[ "$(uname -s)" == "Darwin" ]] && command -v sysctl >/dev/null 2>&1; then
-        sysctl -n hw.ncpu
-    elif command -v getconf >/dev/null 2>&1; then
-        getconf _NPROCESSORS_ONLN
-    else
-        printf '1\n'
-    fi
-}
+detect_make_jobs() { bh_detect_make_jobs; }
 
 detect_platform() {
-    case "$(uname -s)" in
-        Linux) platform_os="linux" ;;
-        Darwin) platform_os="macos" ;;
-        *) platform_os="unknown" ;;
-    esac
-
-    case "$(uname -m)" in
-        x86_64|amd64) platform_arch="amd64" ;;
-        aarch64|arm64) platform_arch="arm64" ;;
-        *) platform_arch="unknown" ;;
-    esac
+    bh_detect_platform
+    platform_os="${BH_PLATFORM_OS:-unknown}"
+    platform_arch="${BH_PLATFORM_ARCH:-unknown}"
 }
 
 ensure_syft() {
@@ -154,20 +139,7 @@ generate_sboms() {
     local scan_dir="$1"
     local spdx_out="$2"
     local cdx_out="$3"
-
-    ensure_syft
-
-    mkdir -p "$(dirname "${spdx_out}")" "$(dirname "${cdx_out}")"
-
-    local temp_spdx temp_cdx
-    temp_spdx="$(mktemp)"
-    temp_cdx="$(mktemp)"
-
-    "${syft_bin}" "dir:${scan_dir}" -o spdx-json > "${temp_spdx}"
-    "${syft_bin}" "dir:${scan_dir}" -o cyclonedx-json > "${temp_cdx}"
-
-    mv "${temp_spdx}" "${spdx_out}"
-    mv "${temp_cdx}" "${cdx_out}"
+    bh_generate_sboms "${dest}" "${scan_dir}" "${spdx_out}" "${cdx_out}"
 }
 
 generate_pom() {
@@ -217,14 +189,7 @@ generate_pom() {
     } >"${output}"
 }
 
-checksum_file() {
-    local file="$1"
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "${file}"
-    else
-        shasum -a 256 "${file}"
-    fi
-}
+checksum_file() { bh_checksum_file "$1"; }
 
 package_deb() {
     local outbase="$1"
@@ -260,16 +225,16 @@ package_deb() {
         deb_version="${deb_version#v}"
     fi
 
-    cat >"${staging}/DEBIAN/control" <<EOF
-Package: suricata
-Version: ${deb_version}
-Architecture: ${deb_arch}
-Maintainer: Wazuh Plugins <packages@wazuh.com>
-Section: utils
-Priority: optional
-Installed-Size: ${installed_size:-0}
-Description: Suricata IDS companion packaged for Wazuh deployments
-EOF
+    local control_tpl="${builder_root}/package-tpl.txt"
+    bh_write_deb_control_from_template \
+        "${staging}" \
+        "${control_tpl}" \
+        "suricata" \
+        "Wazuh Plugins <info@adorsys.com>" \
+        "Suricata IDS companion packaged for Wazuh deployments" \
+        "${deb_version}" \
+        "${deb_arch}" \
+        "${installed_size}"
 
     local deb_out="${dest}/artifacts/${outbase}.deb"
     dpkg-deb --build "${staging}" "${deb_out}" >/dev/null
@@ -318,97 +283,14 @@ prune_release_payload() {
     prune_payload_directory "${release_root}"
 }
 
-install_with_package_manager() {
-    local missing_tools=("$@")
-    if [[ ${#missing_tools[@]} -eq 0 ]]; then
-        return 0
-    fi
-
-    if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
-        local packages=()
-        for tool in "${missing_tools[@]}"; do
-            case "$tool" in
-                pkg-config)
-                    packages+=("pkg-config")
-                    ;;
-                glibtoolize|libtoolize)
-                    packages+=("libtool")
-                    ;;
-                ninja)
-                    packages+=("ninja")
-                    ;;
-                *)
-                    packages+=("$tool")
-                    ;;
-            esac
-        done
-        if [[ ${#packages[@]} -gt 0 ]]; then
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install "${packages[@]}"
-        fi
-        return 0
-    fi
-
-    return 1
-}
-
-require_tools() {
-    local libtool_cmd="libtoolize"
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        libtool_cmd="glibtoolize"
-    fi
-
-    local required=(curl tar make gcc autoconf automake pkg-config cmake ninja rustc cargo python3 "$libtool_cmd")
-
-    if [[ "$(uname -s)" == "Linux" ]]; then
-        required+=(dpkg-deb)
-    fi
-
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        required+=(hdiutil)
-    fi
-
-    local missing=()
-    for tool in "${required[@]}"; do
-        if ! command -v "$tool" >/dev/null 2>&1; then
-            missing+=("$tool")
-        fi
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        if install_with_package_manager "${missing[@]}"; then
-            missing=()
-            for tool in "${required[@]}"; do
-                if ! command -v "$tool" >/dev/null 2>&1; then
-                    missing+=("$tool")
-                fi
-            done
-        fi
-    fi
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing build dependencies: ${missing[*]}" >&2
-        exit 1
-    fi
-}
+require_tools() { bh_require_tools cmake ninja rustc cargo; }
 
 require_libraries() {
     local required_libs=(libpcap libpcre2-8 yaml-0.1 jansson libmagic libnet liblz4 zlib)
     if [[ "${platform_os}" == "linux" ]]; then
         required_libs+=(libcap-ng)
     fi
-
-    local missing=()
-    for lib in "${required_libs[@]}"; do
-        if ! pkg-config --exists "$lib" >/dev/null 2>&1; then
-            missing+=("$lib")
-        fi
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing required libraries (pkg-config): ${missing[*]}" >&2
-        echo "Ensure libpcap, PCRE2, libyaml, jansson, libmagic, libnet, and lz4/zlib development headers are installed." >&2
-        exit 1
-    fi
+    bh_require_libraries "${required_libs[@]}"
 }
 
 prepare_dest() {
