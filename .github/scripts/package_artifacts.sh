@@ -22,7 +22,12 @@ mkdir -p "${stage_dir}"
 rsync -a "${artifact_dir}/" "${stage_dir}/"
 
 manifest_file="$(mktemp)"
-python "${repo_root}/.github/scripts/list_artifacts.py" "${stage_dir}" "${builder}" "${version}" "${triplet}" > "${manifest_file}"
+python "${repo_root}/.github/scripts/list_artifacts.py" \
+  "${stage_dir}" \
+  "${builder}" \
+  "${version}" \
+  "${triplet}" \
+  --workspace "${repo_root}" > "${manifest_file}"
 
 {
   echo "version=${version}"

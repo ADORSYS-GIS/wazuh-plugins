@@ -95,7 +95,6 @@ jobs:
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
           files: ${{ steps.package.outputs.files }}
           make_latest: true
-          allowUpdates: true
           draft: false
           prerelease: false
 
@@ -150,6 +149,5 @@ jobs:
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
           files: ${{ steps.package.outputs.files }}
           make_latest: true
-          allowUpdates: true
           draft: false
           prerelease: false
