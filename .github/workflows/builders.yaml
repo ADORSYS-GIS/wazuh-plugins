@@ -62,13 +62,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |
-          python3 -m venv .venv
+          if [[ ! -d .venv ]]; then
+            python3 -m venv .venv
+          fi
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pyyaml
+          python -m pip install -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -93,10 +100,34 @@ jobs:
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: ${{ steps.package.outputs.files }}
           make_latest: true
           draft: false
           prerelease: false
+      - name: Upload ${{ matrix.builder }} release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          files="${{ steps.package.outputs.files }}"
+          if [[ -z "${files// }" ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          mapfile -t asset_paths <<< "${files}"
+          filtered=()
+          for path in "${asset_paths[@]}"; do
+            if [[ -n "${path// }" ]]; then
+              filtered+=("$path")
+            fi
+          done
+          if [[ ${#filtered[@]} -eq 0 ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          gh release upload "${tag}" "${filtered[@]}" --clobber --repo "${{ github.repository }}"
 
   build-macos:
     needs: discover
@@ -116,13 +147,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |
-          python3 -m venv .venv
+          if [[ ! -d .venv ]]; then
+            python3 -m venv .venv
+          fi
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pyyaml
+          python -m pip install -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -147,7 +185,31 @@ jobs:
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: ${{ steps.package.outputs.files }}
           make_latest: true
           draft: false
           prerelease: false
+      - name: Upload ${{ matrix.builder }} release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          files="${{ steps.package.outputs.files }}"
+          if [[ -z "${files// }" ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          mapfile -t asset_paths <<< "${files}"
+          filtered=()
+          for path in "${asset_paths[@]}"; do
+            if [[ -n "${path// }" ]]; then
+              filtered+=("$path")
+            fi
+          done
+          if [[ ${#filtered[@]} -eq 0 ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          gh release upload "${tag}" "${filtered[@]}" --clobber --repo "${{ github.repository }}"

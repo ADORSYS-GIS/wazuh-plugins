@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import os
 import shutil
 from pathlib import Path
 
@@ -27,6 +26,7 @@ def build_manifest(
         flatten_dir.mkdir(parents=True, exist_ok=True)
 
     entries: list[str] = []
+    seen_names: set[str] = set()
     for path in sorted(stage_dir.rglob("*")):
         path = path.resolve()
         if flatten_dir and flatten_dir in path.parents:
@@ -37,6 +37,9 @@ def build_manifest(
             continue
         rel = path.relative_to(stage_dir).as_posix()
         asset_name = f"{builder}-{version}-{triplet}-{rel.replace('/', '-')}"
+        if asset_name in seen_names:
+            continue
+        seen_names.add(asset_name)
         output_path: Path
         if flatten_dir:
             dest = flatten_dir / asset_name
