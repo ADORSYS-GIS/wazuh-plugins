@@ -194,8 +194,7 @@ package_deb() {
         return 0
     fi
 
-    local staging="${dest}/deb-build"
-    rm -rf "${staging}"
+    local staging="$(mktemp -d)"
     mkdir -p "${staging}/opt/wazuh/yara" "${staging}/DEBIAN"
 
     cp -R "${release_dir}/." "${staging}/opt/wazuh/yara/"
@@ -209,9 +208,14 @@ package_deb() {
     local installed_size
     installed_size=$(du -ks "${staging}/opt/wazuh/yara" | awk '{print $1}')
 
+    local deb_version="${component_version}"
+    if [[ "${deb_version}" == v* ]]; then
+        deb_version="${deb_version#v}"
+    fi
+
     cat >"${staging}/DEBIAN/control" <<EOF
 Package: yara
-Version: ${component_version}
+Version: ${deb_version}
 Architecture: ${deb_arch}
 Maintainer: Wazuh Plugins <packages@wazuh.com>
 Section: utils
@@ -222,6 +226,7 @@ EOF
 
     local deb_out="${dest}/artifacts/${outbase}.deb"
     dpkg-deb --build "${staging}" "${deb_out}" >/dev/null
+    rm -rf "${staging}"
     printf '%s\n' "${deb_out}"
 }
 
@@ -238,15 +243,23 @@ package_dmg() {
         return 0
     fi
 
-    local staging="${dest}/dmg-build"
-    rm -rf "${staging}"
-    mkdir -p "${staging}"
+    local staging="$(mktemp -d)"
 
     cp -R "${release_dir}" "${staging}/yara"
 
     local dmg_out="${dest}/artifacts/${outbase}.dmg"
     hdiutil create -volname "${outbase}" -srcfolder "${staging}" -format UDZO -ov "${dmg_out}" >/dev/null
+    rm -rf "${staging}"
     printf '%s\n' "${dmg_out}"
+}
+
+prune_release_payload() {
+    rm -rf "${release_root}/include"
+    rm -rf "${release_root}/share"
+    rm -rf "${release_root}/lib/pkgconfig"
+    if [[ -d "${release_root}/lib" ]]; then
+        find "${release_root}/lib" -type f \( -name '*.a' -o -name '*.la' \) -delete
+    fi
 }
 
 package_release() {
@@ -447,6 +460,7 @@ main() {
     make install
     popd >/dev/null
 
+    prune_release_payload
     install_rules_and_scripts
     write_metadata "${yara_version}"
 
