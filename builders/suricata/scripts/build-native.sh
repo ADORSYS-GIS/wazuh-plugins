@@ -398,6 +398,8 @@ bundle_linux_runtime_libs() {
     local libs=(
         libnet.so.1
         libjansson.so.4
+        libpcap.so.1
+        libpcap.so.0.8
     )
     local copied=0
     for lib in "${libs[@]}"; do
@@ -416,7 +418,7 @@ bundle_linux_runtime_libs() {
     done
 
     if [[ "${copied}" -eq 0 ]]; then
-        echo "Warning: Unable to bundle libnet runtime library; Suricata may require libnet.so.1 on the host." >&2
+        echo "Warning: Unable to bundle runtime libraries; Suricata may require libnet/libjansson/libpcap on the host." >&2
     fi
 }
 
