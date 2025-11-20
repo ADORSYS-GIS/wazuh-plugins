@@ -85,7 +85,35 @@ jobs:
             python3-venv \
             python3-pip \
             ca-certificates \
-            curl
+            curl \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            flex \
+            bison \
+            libssl-dev \
+            libpcre2-dev \
+            libmagic-dev \
+            libjansson-dev \
+            libprotobuf-c-dev \
+            protobuf-c-compiler \
+            cmake \
+            ninja-build \
+            rustc \
+            cargo \
+            cbindgen \
+            libyaml-dev \
+            libpcap-dev \
+            libcap-ng-dev \
+            libnss3-dev \
+            libnspr4-dev \
+            liblz4-dev \
+            liblzma-dev \
+            libnet1-dev \
+            zlib1g-dev \
+            libhtp-dev
           rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v5
       - name: Cache Python venv
