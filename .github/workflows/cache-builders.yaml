@@ -43,6 +43,11 @@ jobs:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
     steps:
       - uses: actions/checkout@v5
+      - name: Compute lowercase repository
+        id: repo
+        run: |
+          repo_lc="${GITHUB_REPOSITORY,,}"
+          echo "repo_lc=$repo_lc" >> "$GITHUB_OUTPUT"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -61,5 +66,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ toLower(github.repository) }}/cache-${{ matrix.builder }}:latest
-            ghcr.io/${{ toLower(github.repository) }}/cache-${{ matrix.builder }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-${{ matrix.builder }}:latest
+            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-${{ matrix.builder }}:${{ github.sha }}
