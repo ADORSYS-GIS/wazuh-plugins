@@ -368,6 +368,66 @@ Contains Suricata upstream release ${suricata_version} (${suricata_tag}) for ${p
 EOF_README
 }
 
+bundle_linux_runtime_libs() {
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    local multiarch=""
+    if command -v dpkg-architecture >/dev/null 2>&1; then
+        multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
+    fi
+
+    local search_paths=()
+    if [[ -n "${multiarch}" ]]; then
+        search_paths+=("/usr/lib/${multiarch}")
+    fi
+    search_paths+=("/usr/lib" "/usr/lib64")
+
+    local libs=(libnet.so.1)
+    local copied=0
+    for lib in "${libs[@]}"; do
+        local found=""
+        for base in "${search_paths[@]}"; do
+            if [[ -f "${base}/${lib}" ]]; then
+                found="${base}/${lib}"
+                break
+            fi
+        done
+        if [[ -n "${found}" ]]; then
+            mkdir -p "${release_root}/lib"
+            cp "${found}" "${release_root}/lib/"
+            copied=1
+        fi
+    done
+
+    if [[ "${copied}" -eq 0 ]]; then
+        echo "Warning: Unable to bundle libnet runtime library; Suricata may require libnet.so.1 on the host." >&2
+    fi
+}
+
+wrap_linux_binaries() {
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    local bin_dir="${release_root}/bin"
+    for name in suricata suricatactl suricatasc; do
+        local target="${bin_dir}/${name}"
+        if [[ -x "${target}" && ! -L "${target}" ]]; then
+            mv "${target}" "${target}.real"
+            cat >"${target}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="${script_dir}/../lib:${LD_LIBRARY_PATH:-}"
+exec "${script_dir}/$(basename "$0").real" "$@"
+EOF
+            chmod +x "${target}"
+        fi
+    done
+}
+
 package_release() {
     local builder_version="$1"
     local suricata_tag="$2"
@@ -443,6 +503,8 @@ build_suricata() {
     popd >/dev/null
 
     prune_release_payload
+    bundle_linux_runtime_libs
+    wrap_linux_binaries
     install_rules_and_scripts
     write_metadata "${version}" "${suricata_tag}" "${suricata_version}"
     package_release "${version}" "${suricata_tag}" "${suricata_version}"
