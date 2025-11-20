@@ -48,3 +48,6 @@ extra configuration.
 * RPM `Requires` are declared explicitly to mirror `.deb` runtime expectations
   (YARA: `glibc`, `file-libs`, `jansson`; Suricata: `glibc`, `libpcap`, `pcre2`,
   `libyaml`, `file-libs`, `lz4-libs`, `libcap-ng`).
+* Auto-generated runtime dependencies are disabled (`AutoReqProv: no`) to avoid
+  host-provided `libcrypto.so.1.1` being pulled in when we already bundle our
+  own copy.

@@ -482,6 +482,11 @@ Summary: Suricata IDS companion packaged for Wazuh deployments
 License: GPLv2
 BuildArch: ${rpm_arch}
 Requires: glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng
+AutoReqProv: no
+AutoReq: no
+AutoProv: no
+%global _use_internal_dependency_generator 0
+%global __provides_exclude_from ^/opt/wazuh/suricata/lib/.*$
 
 %description
 Suricata IDS companion packaged for Wazuh deployments.
@@ -496,6 +501,8 @@ EOF
 
     if ! rpmbuild -bb "${spec}" \
         --define "_topdir ${rpmroot}" \
+        --define "_use_internal_dependency_generator 0" \
+        --define "autoreqprov 0" \
         --buildroot "${rpmroot}/BUILDROOT" >/dev/null; then
         echo "rpmbuild failed" >&2
         rm -rf "${staging}"
