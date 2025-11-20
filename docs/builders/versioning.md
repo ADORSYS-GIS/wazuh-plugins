@@ -9,7 +9,7 @@ from `version.txt` and exposes it to the build script through the
 ## YARA
 
 * `builders/yara/version.txt` holds the exact upstream tag (e.g. `yara-4.5.4`).
-* `builders/yara/scripts/build-native.sh` downloads the matching tarball by
+* `builders/yara/scripts/build_native.py` downloads the matching tarball by
   referencing `PIPELINE_VERSION`
   (``https://github.com/VirusTotal/yara/archive/refs/tags/${PIPELINE_VERSION}.tar.gz``).
 * The scripted resolver was deleted because it provided duplicate behavior and

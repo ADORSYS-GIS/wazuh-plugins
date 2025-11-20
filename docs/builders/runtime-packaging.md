@@ -9,7 +9,7 @@ extra configuration.
 
 ### DESTDIR staging
 
-* `build-native.sh` for each builder configures `--prefix=/opt/wazuh/<name>` and
+* `build_native.py` for each builder configures `--prefix=/opt/wazuh/<name>` and
   runs `make DESTDIR=${release_root} install`. The staging directory now contains
   the final filesystem layout.
 

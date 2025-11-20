@@ -112,7 +112,7 @@ jobs:
       - id: package
         shell: bash
         run: |
-          .github/scripts/package_artifacts.sh \
+          python .github/scripts/package_artifacts.py \
             "${{ matrix.builder }}" \
             "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact

@@ -51,24 +51,31 @@ def build_native(
     artifact_triplet: str | None,
 ) -> None:
     clean_artifact_dest(artifact_dest)
-    script = pipeline.get("native_build_script", "scripts/build-native.sh")
+    script = pipeline.get("native_build_script")
+    if not script:
+        script = "scripts/build_native.py"
     script_path = (config_dir / script).resolve()
     if not script_path.exists():
         raise FileNotFoundError(f"Native build script not found: {script_path}")
 
+    repo_root = config_dir.parent.parent
     env = os.environ.copy()
     env.update(
         {
             "ARTIFACT_DEST": str(artifact_dest),
             "PIPELINE_VERSION": version,
             "PIPELINE_NAME": pipeline.get("name", config_dir.name),
+            "PYTHONPATH": f"{repo_root}:{env.get('PYTHONPATH','')}",
         }
     )
     if artifact_triplet:
         env["ARTIFACT_TRIPLET"] = artifact_triplet
 
     log(f"Executing native build script {script_path}")
-    subprocess.run([str(script_path)], check=True, cwd=config_dir, env=env)
+    if script_path.suffix == ".py":
+        subprocess.run(["python3", str(script_path)], check=True, cwd=config_dir, env=env)
+    else:
+        subprocess.run([str(script_path)], check=True, cwd=config_dir, env=env)
 
 
 def main() -> None:
