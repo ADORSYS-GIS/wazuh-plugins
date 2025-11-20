@@ -142,6 +142,10 @@ jobs:
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
+        env:
+          PIPELINE_COMMIT: ${{ github.sha }}
+          PIPELINE_REF: ${{ github.ref }}
+          PIPELINE_REPO: ${{ github.repository }}
         run: |
           .github/scripts/run_builder.py \
             --artifact-triplet ${{ matrix.triplet }} \
@@ -226,6 +230,10 @@ jobs:
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
+        env:
+          PIPELINE_COMMIT: ${{ github.sha }}
+          PIPELINE_REF: ${{ github.ref }}
+          PIPELINE_REPO: ${{ github.repository }}
         run: |
           .github/scripts/run_builder.py \
             --artifact-triplet ${{ matrix.triplet }} \
