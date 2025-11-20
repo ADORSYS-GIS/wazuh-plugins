@@ -394,7 +394,10 @@ bundle_linux_runtime_libs() {
     fi
     search_paths+=("/usr/lib" "/usr/lib64")
 
-    local libs=(libnet.so.1)
+    local libs=(
+        libnet.so.1
+        libjansson.so.4
+    )
     local copied=0
     for lib in "${libs[@]}"; do
         local found=""
