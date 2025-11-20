@@ -314,6 +314,12 @@ install_rules_and_scripts() {
     chmod +x "${component_root}/scripts/"*.sh
 }
 
+fix_component_permissions() {
+    chmod -R u+rwX,go+rX "${component_root}"
+    find "${component_root}/bin" -type f -exec chmod 755 {} + 2>/dev/null || true
+    find "${component_root}/scripts" -type f -name '*.sh' -exec chmod 755 {} + 2>/dev/null || true
+}
+
 write_metadata() {
     local builder_version="$1"
     local yara_version="$2"
@@ -453,6 +459,7 @@ main() {
     wrap_linux_binaries
     install_rules_and_scripts
     write_metadata "${version}" "${yara_version}"
+    fix_component_permissions
 
     package_release "${version}" "${yara_version}"
 }
