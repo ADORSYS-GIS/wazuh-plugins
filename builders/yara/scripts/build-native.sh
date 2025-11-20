@@ -6,6 +6,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 builder_root="$(cd "${script_dir}/.." && pwd)"
 common_dir="${builder_root}/../common"
 COMMON_HELPERS="${common_dir}/build-helpers.sh"
+DEPENDENCY_HELPER="${common_dir}/dependencies.py"
+CONFIG_FILE="${builder_root}/config.yaml"
 dest="${ARTIFACT_DEST:-${builder_root}/dist/${triplet}}"
 version="${PIPELINE_VERSION:-dev}"
 rule_bundle="${RULE_BUNDLE:-${builder_root}/rules}"
@@ -20,6 +22,22 @@ if [[ -f "${COMMON_HELPERS}" ]]; then
     source "${COMMON_HELPERS}"
 fi
 
+config_value() {
+    local key="$1"
+    if [[ ! -f "${DEPENDENCY_HELPER}" || ! -f "${CONFIG_FILE}" ]]; then
+        return 1
+    fi
+    python3 "${DEPENDENCY_HELPER}" --value "${key}" "${CONFIG_FILE}" 2>/dev/null || true
+}
+
+dependencies_for() {
+    local section="$1"
+    if [[ ! -f "${DEPENDENCY_HELPER}" || ! -f "${CONFIG_FILE}" ]]; then
+        return
+    fi
+    python3 "${DEPENDENCY_HELPER}" --section "${section}" "${CONFIG_FILE}" 2>/dev/null || true
+}
+
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
         return 0
@@ -29,24 +47,22 @@ ensure_linux_dependencies() {
         return 0
     fi
 
-    local packages=(
-        build-essential
-        autoconf
-        automake
-        libtool
-        pkg-config
-        git
-        libssl-dev
-        libpcre2-dev
-        libmagic-dev
-        libjansson-dev
-        libprotobuf-c-dev
-        protobuf-c-compiler
-        rpm
-    )
+    mapfile -t packages < <(dependencies_for apt)
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        return 0
+    fi
 
     sudo apt-get update -qq
     sudo apt-get install -y "${packages[@]}"
+
+    mapfile -t bash_commands < <(dependencies_for bash)
+    if [[ ${#bash_commands[@]} -gt 0 ]]; then
+        local cmd
+        for cmd in "${bash_commands[@]}"; do
+            [[ -z "${cmd// }" ]] && continue
+            bash -lc "${cmd}"
+        done
+    fi
 }
 
 ensure_macos_environment() {
@@ -55,16 +71,21 @@ ensure_macos_environment() {
     fi
 
     brew update
-    brew install autoconf automake libtool pkg-config openssl@3 pcre2 libmagic jansson protobuf-c
+    mapfile -t packages < <(dependencies_for brew)
+    if [[ ${#packages[@]} -gt 0 ]]; then
+        brew install "${packages[@]}"
+    fi
 
     local openssl_prefix libmagic_prefix pcre2_prefix
-    openssl_prefix="$(brew --prefix openssl@3)"
-    libmagic_prefix="$(brew --prefix libmagic)"
-    pcre2_prefix="$(brew --prefix pcre2)"
+    openssl_prefix="$(brew --prefix openssl@3 2>/dev/null || true)"
+    libmagic_prefix="$(brew --prefix libmagic 2>/dev/null || true)"
+    pcre2_prefix="$(brew --prefix pcre2 2>/dev/null || true)"
 
-    export PKG_CONFIG_PATH="${openssl_prefix}/lib/pkgconfig:${libmagic_prefix}/lib/pkgconfig:${pcre2_prefix}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-    export CPPFLAGS="-I${openssl_prefix}/include -I${libmagic_prefix}/include -I${pcre2_prefix}/include ${CPPFLAGS:-}"
-    export LDFLAGS="-L${openssl_prefix}/lib -L${libmagic_prefix}/lib -L${pcre2_prefix}/lib ${LDFLAGS:-}"
+    if [[ -n "${openssl_prefix:-}" || -n "${libmagic_prefix:-}" || -n "${pcre2_prefix:-}" ]]; then
+        export PKG_CONFIG_PATH="${openssl_prefix:+${openssl_prefix}/lib/pkgconfig:}${libmagic_prefix:+${libmagic_prefix}/lib/pkgconfig:}${pcre2_prefix:+${pcre2_prefix}/lib/pkgconfig:}${PKG_CONFIG_PATH:-}"
+        export CPPFLAGS="${openssl_prefix:+-I${openssl_prefix}/include }${libmagic_prefix:+-I${libmagic_prefix}/include }${pcre2_prefix:+-I${pcre2_prefix}/include }${CPPFLAGS:-}"
+        export LDFLAGS="${openssl_prefix:+-L${openssl_prefix}/lib }${libmagic_prefix:+-L${libmagic_prefix}/lib }${pcre2_prefix:+-L${pcre2_prefix}/lib }${LDFLAGS:-}"
+    fi
 }
 
 cleanup() {
@@ -111,6 +132,11 @@ ensure_syft() {
     mkdir -p "${tools_dir}"
 
     local syft_version="${SYFT_VERSION:-v1.5.0}"
+    local config_syft_version
+    config_syft_version="$(config_value "build.syft_version")"
+    if [[ -z "${SYFT_VERSION:-}" && -n "${config_syft_version// }" ]]; then
+        syft_version="${config_syft_version}"
+    fi
     if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
         curl -sSfL "https://raw.githubusercontent.com/anchore/syft/main/install.sh" | \
             sh -s -- -b "${tools_dir}" "${syft_version}"

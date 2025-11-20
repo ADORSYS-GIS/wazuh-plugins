@@ -10,37 +10,8 @@ permissions:
   packages: write
 
 jobs:
-  discover:
+  build-cache-image:
     runs-on: ubuntu-latest
-    outputs:
-      builder_names: ${{ steps.set-matrix.outputs.builder_names }}
-    steps:
-      - uses: actions/checkout@v5
-      - id: set-matrix
-        run: |
-          python <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          builders = []
-          root = Path('builders')
-          if root.exists():
-              for path in sorted(p for p in root.iterdir() if (p / 'config.yaml').exists()):
-                  builders.append(path.name)
-
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-              fh.write(f"builder_names={json.dumps(builders)}\n")
-          PY
-
-  build-cache-images:
-    needs: discover
-    if: needs.discover.outputs.builder_names != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
     steps:
       - uses: actions/checkout@v5
       - name: Compute lowercase repository
@@ -66,5 +37,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-${{ matrix.builder }}:latest
-            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-${{ matrix.builder }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-builders:latest
+            ghcr.io/${{ steps.repo.outputs.repo_lc }}/cache-builders:${{ github.sha }}

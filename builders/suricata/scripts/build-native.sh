@@ -6,6 +6,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 builder_root="$(cd "${script_dir}/.." && pwd)"
 common_dir="${builder_root}/../common"
 COMMON_HELPERS="${common_dir}/build-helpers.sh"
+DEPENDENCY_HELPER="${common_dir}/dependencies.py"
+CONFIG_FILE="${builder_root}/config.yaml"
 dest="${ARTIFACT_DEST:-${builder_root}/dist/${triplet}}"
 version="${PIPELINE_VERSION:-dev}"
 rule_bundle="${RULE_BUNDLE:-${builder_root}/rules}"
@@ -25,6 +27,22 @@ if [[ -f "${COMMON_HELPERS}" ]]; then
     source "${COMMON_HELPERS}"
 fi
 
+config_value() {
+    local key="$1"
+    if [[ ! -f "${DEPENDENCY_HELPER}" || ! -f "${CONFIG_FILE}" ]]; then
+        return 1
+    fi
+    python3 "${DEPENDENCY_HELPER}" --value "${key}" "${CONFIG_FILE}" 2>/dev/null || true
+}
+
+dependencies_for() {
+    local section="$1"
+    if [[ ! -f "${DEPENDENCY_HELPER}" || ! -f "${CONFIG_FILE}" ]]; then
+        return
+    fi
+    python3 "${DEPENDENCY_HELPER}" --section "${section}" "${CONFIG_FILE}" 2>/dev/null || true
+}
+
 ensure_linux_dependencies() {
     if [[ "$(uname -s)" != "Linux" ]]; then
         return 0
@@ -34,36 +52,22 @@ ensure_linux_dependencies() {
         return 0
     fi
 
-    local packages=(
-        build-essential
-        autoconf
-        automake
-        libtool
-        pkg-config
-        cmake
-        ninja-build
-        rustc
-        cargo
-        cbindgen
-        libpcre2-dev
-        libpcre3-dev
-        libyaml-dev
-        libjansson-dev
-        libmagic-dev
-        libpcap-dev
-        libcap-ng-dev
-        libnss3-dev
-        libnspr4-dev
-        liblz4-dev
-        liblzma-dev
-        libnet1-dev
-        zlib1g-dev
-        libhtp-dev
-        rpm
-    )
+    mapfile -t packages < <(dependencies_for apt)
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        return 0
+    fi
 
     sudo apt-get update -qq
     sudo apt-get install -y "${packages[@]}"
+
+    mapfile -t bash_commands < <(dependencies_for bash)
+    if [[ ${#bash_commands[@]} -gt 0 ]]; then
+        local cmd
+        for cmd in "${bash_commands[@]}"; do
+            [[ -z "${cmd// }" ]] && continue
+            bash -lc "${cmd}"
+        done
+    fi
 }
 
 version_ge() {
@@ -81,7 +85,13 @@ ensure_cbindgen_version() {
         return 0
     fi
     local required="0.20.0"
-    local install_version="0.26.0"
+    local install_version="${CBINDGEN_VERSION:-}"
+    if [[ -z "${install_version}" ]]; then
+        install_version="$(config_value "build.cbindgen_version")"
+    fi
+    if [[ -z "${install_version}" ]]; then
+        install_version="0.26.0"
+    fi
     local current=""
     if command -v cbindgen >/dev/null 2>&1; then
         current="$(cbindgen --version 2>/dev/null | awk '{print $2}')"
@@ -106,7 +116,10 @@ ensure_macos_environment() {
     fi
 
     brew update
-    brew install autoconf automake libtool pkg-config pcre2 libyaml jansson libmagic libpcap lz4 libnet rust cmake ninja
+    mapfile -t packages < <(dependencies_for brew)
+    if [[ ${#packages[@]} -gt 0 ]]; then
+        brew install "${packages[@]}"
+    fi
 
     local pkg
     local pkgconfig_paths=()
@@ -161,6 +174,11 @@ ensure_syft() {
     mkdir -p "${tools_dir}"
 
     local syft_version="${SYFT_VERSION:-v1.5.0}"
+    local config_syft_version
+    config_syft_version="$(config_value "build.syft_version")"
+    if [[ -z "${SYFT_VERSION:-}" && -n "${config_syft_version// }" ]]; then
+        syft_version="${config_syft_version}"
+    fi
     if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
         curl -sSfL "https://raw.githubusercontent.com/anchore/syft/main/install.sh" | \
             sh -s -- -b "${tools_dir}" "${syft_version}"

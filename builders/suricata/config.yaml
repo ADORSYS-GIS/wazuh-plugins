@@ -7,6 +7,63 @@ pipeline:
   native_build_script: scripts/build-native.sh
   artifacts:
     dest: dist
+build:
+  syft_version: v1.5.0
+  cbindgen_version: "0.26.0"
+dependencies:
+  apt:
+    - sudo
+    - git
+    - python3
+    - python3-venv
+    - python3-pip
+    - ca-certificates
+    - curl
+    - build-essential
+    - autoconf
+    - automake
+    - libtool
+    - pkg-config
+    - dpkg-dev
+    - flex
+    - bison
+    - cmake
+    - ninja-build
+    - rustc
+    - cargo
+    - libpcre2-dev
+    - libpcre3-dev
+    - libyaml-dev
+    - libjansson-dev
+    - libmagic-dev
+    - libpcap-dev
+    - libcap-ng-dev
+    - libnss3-dev
+    - libnspr4-dev
+    - liblz4-dev
+    - liblzma-dev
+    - libnet1-dev
+    - zlib1g-dev
+    - libhtp-dev
+    - rpm
+    - gnupg2
+  bash:
+    - cargo install --locked --force cbindgen # --version 0.26.0
+  brew:
+    - autoconf
+    - automake
+    - libtool
+    - pkg-config
+    - pcre2
+    - libyaml
+    - jansson
+    - libmagic
+    - libpcap
+    - lz4
+    - libnet
+    - rust
+    - cmake
+    - ninja
 ci:
   lint:
     - echo "Validate Suricata configs"
