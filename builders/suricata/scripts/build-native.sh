@@ -496,7 +496,7 @@ build_suricata() {
     )
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
     local revision_cppflag
-    printf -v revision_cppflag '-DREVISION="%s"' "${revision_label}"
+    revision_cppflag=$(printf -- '-DREVISION="%s"' "${revision_label}")
 
     local old_cppflags="${CPPFLAGS:-}"
     CPPFLAGS="${old_cppflags} ${revision_cppflag}" ./configure "${configure_args[@]}"
