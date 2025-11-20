@@ -429,8 +429,8 @@ main() {
     )
 
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
-    local revision_cppflag
-    revision_cppflag=$(printf -- '-DREVISION="%s"' "${revision_label}")
+    local sanitized_label="${revision_label//\"/\\\"}"
+    local revision_cppflag="-DREVISION=\\\"${sanitized_label}\\\""
 
     local old_cppflags="${CPPFLAGS:-}"
     CPPFLAGS="${old_cppflags} ${revision_cppflag}" \
