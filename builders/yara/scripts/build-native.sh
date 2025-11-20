@@ -432,14 +432,11 @@ main() {
     local escaped_revision="${revision_label//\"/\\\"}"
     local revision_cppflag="-DREVISION=\\\"${escaped_revision}\\\""
 
-    local old_cppflags="${CPPFLAGS:-}"
-    local old_ldflags="${LDFLAGS:-}"
-    CPPFLAGS="${old_cppflags} ${revision_cppflag}"
-    LDFLAGS="${old_ldflags} ${rpath_flag}"
-    export CPPFLAGS LDFLAGS
-    ./configure "${configure_args[@]}"
-    CPPFLAGS="${old_cppflags}"
-    LDFLAGS="${old_ldflags}"
+    local configure_cppflags="${CPPFLAGS:-} ${revision_cppflag}"
+    local configure_ldflags="${LDFLAGS:-} ${rpath_flag}"
+    env CPPFLAGS="${configure_cppflags}" \
+        LDFLAGS="${configure_ldflags}" \
+        ./configure "${configure_args[@]}"
     make -j "${jobs}"
     make install
     popd >/dev/null
