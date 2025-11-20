@@ -3,4 +3,4 @@ Maintainer: Wazuh Plugins <info@adorsys.com>
 Section: utils
 Priority: optional
 Description: Suricata IDS companion packaged for Wazuh deployments
-
+Depends: libc6 (>= 2.31), libpcap0.8, libpcre2-8-0, libyaml-0-2, libjansson4, libmagic1, liblz4-1, libcap-ng0

@@ -56,11 +56,28 @@ jobs:
           - os: ubuntu-24.04
             arch: amd64
             triplet: linux-amd64
+            container_tag: "20.04"
           - os: ubuntu-24.04-arm
             arch: arm64
             triplet: linux-arm64
+            container_tag: "20.04"
     runs-on: ${{ matrix.os }}
+    container:
+      image: ubuntu:${{ matrix.container_tag }}
+      options: --user 0:0
     steps:
+      - name: Install base packages
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            git \
+            python3 \
+            python3-venv \
+            python3-pip \
+            ca-certificates \
+            curl
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v5
       - name: Cache Python venv
         uses: actions/cache@v4
@@ -135,9 +152,9 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-13, macos-latest]
+        os: [macos-intel, macos-latest]
         include:
-          - os: macos-13
+          - os: macos-intel
             arch: amd64
             triplet: macos-amd64
           - os: macos-latest
