@@ -165,6 +165,7 @@ bh_require_tools() {
 }
 
 bh_require_libraries() {
+    bh_ensure_pkg_config_path
     local libs=("$@")
     local missing=()
     for lib in "${libs[@]}"; do
