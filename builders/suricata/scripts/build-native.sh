@@ -481,6 +481,7 @@ Release: 1
 Summary: Suricata IDS companion packaged for Wazuh deployments
 License: GPLv2
 BuildArch: ${rpm_arch}
+Requires: glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng
 
 %description
 Suricata IDS companion packaged for Wazuh deployments.

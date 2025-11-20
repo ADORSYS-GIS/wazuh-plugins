@@ -45,3 +45,6 @@ extra configuration.
   for `x86_64` and `aarch64`.
 * RPMs list `/opt/wazuh/<name>` as the single `%files` entry, so the full
   directory hierarchy is owned by the package and matches the tarball layout.
+* RPM `Requires` are declared explicitly to mirror `.deb` runtime expectations
+  (YARA: `glibc`, `file-libs`, `jansson`; Suricata: `glibc`, `libpcap`, `pcre2`,
+  `libyaml`, `file-libs`, `lz4-libs`, `libcap-ng`).

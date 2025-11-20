@@ -274,11 +274,10 @@ package_release() {
 
     (cd "${dist_dir}" && tar -czf "${tarball##*/}" "${outbase}")
 
-    local deb_pkg dmg_pkg
+    local deb_pkg dmg_pkg rpm_pkg
     deb_pkg=$(package_deb "${outbase}" "${release_root}" "${builder_version}" || true)
     dmg_pkg=$(package_dmg "${outbase}" "${release_root}" || true)
-    local rpm_pkg
-        rpm_pkg=$(package_rpm "${outbase}" "${release_root}" "${builder_version}" || true)
+    rpm_pkg=$(package_rpm "${outbase}" "${release_root}" "${builder_version}" || true)
 
     {
         checksum_file "${tarball}"
@@ -441,6 +440,7 @@ Release: 1
 Summary: YARA rule scanner packaged for Wazuh deployments
 License: MIT
 BuildArch: ${rpm_arch}
+Requires: glibc, file-libs, jansson
 
 %description
 YARA rule scanner packaged for Wazuh deployments.
