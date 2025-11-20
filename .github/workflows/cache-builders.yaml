@@ -1,0 +1,65 @@
+name: Builder cache images
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      builder_names: ${{ steps.set-matrix.outputs.builder_names }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: set-matrix
+        run: |
+          python <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          builders = []
+          root = Path('builders')
+          if root.exists():
+              for path in sorted(p for p in root.iterdir() if (path / 'config.yaml').exists()):
+                  builders.append(path.name)
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f"builder_names={json.dumps(builders)}\n")
+          PY
+
+  build-cache-images:
+    needs: discover
+    if: needs.discover.outputs.builder_names != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push cache image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/docker/cache.Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}/cache-${{ matrix.builder }}:latest
+            ghcr.io/${{ github.repository }}/cache-${{ matrix.builder }}:${{ github.sha }}
