@@ -59,6 +59,7 @@ ensure_linux_dependencies() {
         libnet1-dev
         zlib1g-dev
         libhtp-dev
+        rpm
     )
 
     sudo apt-get update -qq
@@ -441,6 +442,80 @@ EOF
     done
 }
 
+package_rpm() {
+    local outbase="$1"
+    local release_dir="$2"
+    local component_version="$3"
+
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    if ! command -v rpmbuild >/dev/null 2>&1; then
+        echo "rpmbuild not available; skipping .rpm packaging" >&2
+        return 0
+    fi
+
+    local rpm_arch="${platform_arch}"
+    case "${rpm_arch}" in
+        amd64) rpm_arch="x86_64" ;;
+        arm64) rpm_arch="aarch64" ;;
+        *) rpm_arch="noarch" ;;
+    esac
+
+    local rpm_version="${component_version}"
+    if [[ "${rpm_version}" == v* ]]; then
+        rpm_version="${rpm_version#v}"
+    fi
+
+    local staging
+    staging="$(mktemp -d)"
+    local rpmroot="${staging}/rpmbuild"
+    mkdir -p "${rpmroot}/"{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+    local spec="${rpmroot}/SPECS/package.spec"
+    cat >"${spec}" <<EOF
+Name: suricata
+Version: ${rpm_version}
+Release: 1
+Summary: Suricata IDS companion packaged for Wazuh deployments
+License: GPLv2
+BuildArch: ${rpm_arch}
+
+%description
+Suricata IDS companion packaged for Wazuh deployments.
+
+%install
+mkdir -p %{buildroot}
+cp -a ${release_dir}/. %{buildroot}
+
+%files
+${component_prefix}
+EOF
+
+    if ! rpmbuild -bb "${spec}" \
+        --define "_topdir ${rpmroot}" \
+        --buildroot "${rpmroot}/BUILDROOT" >/dev/null; then
+        echo "rpmbuild failed" >&2
+        rm -rf "${staging}"
+        return 0
+    fi
+
+    local rpm_path
+    rpm_path="$(find "${rpmroot}/RPMS" -name '*.rpm' -print -quit)"
+    if [[ -z "${rpm_path}" ]]; then
+        echo "Unable to locate built rpm" >&2
+        rm -rf "${staging}"
+        return 0
+    fi
+
+    local dest_path="${dest}/artifacts/${outbase}.rpm"
+    mkdir -p "${dest}/artifacts"
+    cp "${rpm_path}" "${dest_path}"
+    rm -rf "${staging}"
+    printf '%s\n' "${dest_path}"
+}
+
 package_release() {
     local builder_version="$1"
     local suricata_tag="$2"
@@ -465,9 +540,10 @@ package_release() {
 
     (cd "${dist_dir}" && tar -czf "${tarball##*/}" "${outbase}")
 
-    local deb_pkg dmg_pkg
+    local deb_pkg dmg_pkg rpm_pkg
     deb_pkg=$(package_deb "${outbase}" "${release_root}" "${builder_version}" || true)
     dmg_pkg=$(package_dmg "${outbase}" "${release_root}" || true)
+    rpm_pkg=$(package_rpm "${outbase}" "${release_root}" "${builder_version}" || true)
 
     {
         checksum_file "${tarball}"
@@ -479,6 +555,9 @@ package_release() {
         fi
         if [[ -n "${dmg_pkg:-}" ]]; then
             checksum_file "${dmg_pkg}"
+        fi
+        if [[ -n "${rpm_pkg:-}" ]]; then
+            checksum_file "${rpm_pkg}"
         fi
     } > "${checksum_file_path}"
 }
