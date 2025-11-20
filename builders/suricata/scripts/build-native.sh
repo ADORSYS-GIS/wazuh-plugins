@@ -16,6 +16,8 @@ platform_arch=""
 release_name=""
 release_root=""
 
+export PATH="${HOME}/.cargo/bin:${PATH}"
+
 if [[ -f "${COMMON_HELPERS}" ]]; then
     # shellcheck disable=SC1090
     source "${COMMON_HELPERS}"
@@ -59,6 +61,40 @@ ensure_linux_dependencies() {
 
     sudo apt-get update -qq
     sudo apt-get install -y "${packages[@]}"
+}
+
+version_ge() {
+    local a="$1" b="$2"
+    if [[ -z "${a}" || -z "${b}" ]]; then
+        return 1
+    fi
+    local first
+    first="$(printf '%s\n%s\n' "$a" "$b" | sort -V | head -n1)"
+    [[ "${first}" == "$b" ]]
+}
+
+ensure_cbindgen_version() {
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        return 0
+    fi
+    local required="0.20.0"
+    local install_version="0.26.0"
+    local current=""
+    if command -v cbindgen >/dev/null 2>&1; then
+        current="$(cbindgen --version 2>/dev/null | awk '{print $2}')"
+        if version_ge "${current}" "${required}"; then
+            return 0
+        fi
+    fi
+
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "cargo not available to install a newer cbindgen" >&2
+        return 1
+    fi
+
+    echo "Installing cbindgen ${install_version} via cargo" >&2
+    cargo install --locked --force cbindgen --version "${install_version}"
+    hash -r
 }
 
 ensure_macos_environment() {
@@ -415,6 +451,7 @@ build_suricata() {
 main() {
     detect_platform
     ensure_linux_dependencies
+    ensure_cbindgen_version
     ensure_macos_environment
     require_tools
     require_libraries

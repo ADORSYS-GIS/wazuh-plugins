@@ -116,6 +116,11 @@ jobs:
             libnet1-dev \
             zlib1g-dev \
             libhtp-dev
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=\$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+          apt-get update
+          apt-get install -y --no-install-recommends gh
           multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
           echo "PKG_CONFIG_PATH=/usr/lib/${multiarch}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
           rm -rf /var/lib/apt/lists/*
