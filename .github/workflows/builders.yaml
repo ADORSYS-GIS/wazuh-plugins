@@ -114,6 +114,8 @@ jobs:
             libnet1-dev \
             zlib1g-dev \
             libhtp-dev
+          multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+          echo "PKG_CONFIG_PATH=/usr/lib/${multiarch}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
           rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v5
       - name: Cache Python venv
