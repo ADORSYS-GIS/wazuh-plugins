@@ -34,6 +34,7 @@ patterns=(
   "*.sha256.txt"
   "*.deb"
   "*.dmg"
+  "*.rpm"
 )
 for pattern in "${patterns[@]}"; do
   for file in "${package_src}"/${pattern}; do
