@@ -182,9 +182,9 @@ package_deb() {
     fi
 
     local staging="$(mktemp -d)"
-    mkdir -p "${staging}/opt/wazuh/yara" "${staging}/DEBIAN"
+    mkdir -p "${staging}/DEBIAN"
 
-    cp -R "${release_dir}/." "${staging}/opt/wazuh/yara/"
+    cp -R "${release_dir}/." "${staging}/"
 
     local deb_arch="${platform_arch}"
     case "${deb_arch}" in
@@ -192,8 +192,9 @@ package_deb() {
         *) deb_arch="all" ;;
     esac
 
+    local component_path="${staging}${component_prefix}"
     local installed_size
-    installed_size=$(du -ks "${staging}/opt/wazuh/yara" | awk '{print $1}')
+    installed_size=$(du -ks "${component_path}" | awk '{print $1}')
 
     local deb_version="${component_version}"
     if [[ "${deb_version}" == v* ]]; then
@@ -246,7 +247,7 @@ prune_payload_directory() {
 }
 
 prune_release_payload() {
-    prune_payload_directory "${release_root}"
+    prune_payload_directory "${component_root}"
 }
 
 package_release() {
@@ -265,7 +266,7 @@ package_release() {
     mkdir -p "${artifact_root}" "${sbom_dir}"
 
     cp -R "${release_root}/." "${artifact_root}/"
-    prune_payload_directory "${artifact_root}"
+    prune_payload_directory "${artifact_root}${component_prefix}"
 
     generate_sboms "${artifact_root}" "${sbom_dir}/${outbase}.sbom.spdx.json" "${sbom_dir}/${outbase}.sbom.cdx.json"
     generate_pom "${pom_file}" "${outbase}" "${builder_version}" "${yara_version}"
@@ -298,32 +299,32 @@ require_libraries() {
 }
 
 prepare_dest() {
-    rm -rf "${dest}"
-    mkdir -p "${release_root}"
+    rm -rf "${release_root}"
+    mkdir -p "${component_root}" "${dest}/artifacts"
 }
 
 install_rules_and_scripts() {
     if [[ -d "${rule_bundle}" ]]; then
-        mkdir -p "${release_root}/rules"
-        cp -R "${rule_bundle}/." "${release_root}/rules/"
+        mkdir -p "${component_root}/rules"
+        cp -R "${rule_bundle}/." "${component_root}/rules/"
     fi
-    mkdir -p "${release_root}/scripts"
-    cp "${script_dir}/scan.sh" "${release_root}/scripts/scan.sh"
-    cp "${script_dir}/scan-fixtures.sh" "${release_root}/scripts/scan-fixtures.sh"
-    chmod +x "${release_root}/scripts/"*.sh
+    mkdir -p "${component_root}/scripts"
+    cp "${script_dir}/scan.sh" "${component_root}/scripts/scan.sh"
+    cp "${script_dir}/scan-fixtures.sh" "${component_root}/scripts/scan-fixtures.sh"
+    chmod +x "${component_root}/scripts/"*.sh
 }
 
 write_metadata() {
     local builder_version="$1"
     local yara_version="$2"
-    cat >"${release_root}/BUILDINFO.txt" <<EOF_INFO
+    cat >"${component_root}/BUILDINFO.txt" <<EOF_INFO
 # YARA native build
 PIPELINE_VERSION=${builder_version}
 TRIPLET=${triplet}
 YARA_VERSION=${yara_version}
 RELEASE_NAME=${release_name}
 EOF_INFO
-    cat >"${release_root}/README.txt" <<EOF_README
+    cat >"${component_root}/README.txt" <<EOF_README
 Wazuh YARA package ${builder_version}
 Contains YARA upstream release ${yara_version} for ${platform_os}/${platform_arch}.
 EOF_README
@@ -356,8 +357,8 @@ bundle_linux_runtime_libs() {
             fi
         done
         if [[ -n "${found}" ]]; then
-            mkdir -p "${release_root}/lib"
-            cp "${found}" "${release_root}/lib/"
+            mkdir -p "${component_root}/lib"
+            cp "${found}" "${component_root}/lib/"
             copied=1
         fi
     done
@@ -372,7 +373,7 @@ wrap_linux_binaries() {
         return 0
     fi
 
-    local bin_dir="${release_root}/bin"
+    local bin_dir="${component_root}/bin"
     for name in yara yarac; do
         local target="${bin_dir}/${name}"
         if [[ -x "${target}" && ! -L "${target}" ]]; then
@@ -397,6 +398,8 @@ main() {
     detect_platform
     release_name="yara-${version}-${platform_os}-${platform_arch}"
     release_root="${dest}/release/${release_name}"
+    component_prefix="/opt/wazuh/yara"
+    component_root="${release_root}${component_prefix}"
     prepare_dest
 
     local resolver_script="${script_dir}/resolve_yara_version.py"
@@ -423,7 +426,7 @@ main() {
     fi
 
     local configure_args=(
-        --prefix="${release_root}"
+        --prefix="${component_prefix}"
         --with-crypto
         --enable-magic
     )
@@ -433,13 +436,16 @@ main() {
     local revision_header="${build_dir}/revision.h"
     printf '#define REVISION "%s"\n' "${escaped_revision}" > "${revision_header}"
 
-    local configure_cppflags="${CPPFLAGS:-} -include ${revision_header}"
-    local configure_ldflags="${LDFLAGS:-} ${rpath_flag}"
-    env CPPFLAGS="${configure_cppflags}" \
-        LDFLAGS="${configure_ldflags}" \
-        ./configure "${configure_args[@]}"
+    local old_cppflags="${CPPFLAGS:-}"
+    local old_ldflags="${LDFLAGS:-}"
+    CPPFLAGS="${old_cppflags} -include ${revision_header}"
+    LDFLAGS="${old_ldflags} ${rpath_flag}"
+    export CPPFLAGS LDFLAGS
+    ./configure "${configure_args[@]}"
     make -j "${jobs}"
-    make install
+    make DESTDIR="${release_root}" install
+    CPPFLAGS="${old_cppflags}"
+    LDFLAGS="${old_ldflags}"
     popd >/dev/null
 
     prune_release_payload

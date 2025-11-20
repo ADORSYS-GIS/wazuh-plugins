@@ -15,6 +15,8 @@ platform_os=""
 platform_arch=""
 release_name=""
 release_root=""
+component_prefix="/opt/wazuh/suricata"
+component_root=""
 
 export PATH="${HOME}/.cargo/bin:${PATH}"
 
@@ -244,9 +246,9 @@ package_deb() {
 
     local staging
     staging="$(mktemp -d)"
-    mkdir -p "${staging}/opt/wazuh/suricata" "${staging}/DEBIAN"
+    mkdir -p "${staging}/DEBIAN"
 
-    cp -R "${release_dir}/." "${staging}/opt/wazuh/suricata/"
+    cp -R "${release_dir}/." "${staging}/"
 
     local deb_arch="${platform_arch}"
     case "${deb_arch}" in
@@ -254,8 +256,9 @@ package_deb() {
         *) deb_arch="all" ;;
     esac
 
+    local component_path="${staging}${component_prefix}"
     local installed_size
-    installed_size=$(du -ks "${staging}/opt/wazuh/suricata" | awk '{print $1}')
+    installed_size=$(du -ks "${component_path}" | awk '{print $1}')
 
     local deb_version="${component_version}"
     if [[ "${deb_version}" == v* ]]; then
@@ -317,7 +320,7 @@ prune_payload_directory() {
 }
 
 prune_release_payload() {
-    prune_payload_directory "${release_root}"
+    prune_payload_directory "${component_root}"
 }
 
 require_tools() { bh_require_tools cmake ninja rustc cargo cbindgen; }
@@ -331,30 +334,31 @@ require_libraries() {
 }
 
 prepare_dest() {
-    rm -rf "${dest}"
     release_root="${dest}/release/${release_name}"
-    mkdir -p "${release_root}" "${dest}/artifacts"
-    mkdir -p "${release_root}/var/log/suricata" "${release_root}/var/run" "${release_root}/var/lib/suricata"
+    component_root="${release_root}${component_prefix}"
+    rm -rf "${release_root}"
+    mkdir -p "${component_root}" "${dest}/artifacts"
+    mkdir -p "${component_root}/var/log/suricata" "${component_root}/var/run" "${component_root}/var/lib/suricata"
 }
 
 install_rules_and_scripts() {
     if [[ -d "${rule_bundle}" ]]; then
-        mkdir -p "${release_root}/rules" "${release_root}/custom-rules"
-        cp -R "${rule_bundle}/." "${release_root}/rules/"
-        cp -R "${rule_bundle}/." "${release_root}/custom-rules/"
+        mkdir -p "${component_root}/rules" "${component_root}/custom-rules"
+        cp -R "${rule_bundle}/." "${component_root}/rules/"
+        cp -R "${rule_bundle}/." "${component_root}/custom-rules/"
     fi
 
-    mkdir -p "${release_root}/scripts"
-    cp "${script_dir}/entrypoint.sh" "${release_root}/scripts/entrypoint.sh"
-    cp "${script_dir}/run-regression.sh" "${release_root}/scripts/run-regression.sh"
-    chmod +x "${release_root}/scripts/"*.sh
+    mkdir -p "${component_root}/scripts"
+    cp "${script_dir}/entrypoint.sh" "${component_root}/scripts/entrypoint.sh"
+    cp "${script_dir}/run-regression.sh" "${component_root}/scripts/run-regression.sh"
+    chmod +x "${component_root}/scripts/"*.sh
 }
 
 write_metadata() {
     local builder_version="$1"
     local suricata_tag="$2"
     local suricata_version="$3"
-    cat >"${release_root}/BUILDINFO.txt" <<EOF_INFO
+    cat >"${component_root}/BUILDINFO.txt" <<EOF_INFO
 # Suricata native build
 PIPELINE_VERSION=${builder_version}
 TRIPLET=${triplet}
@@ -362,7 +366,7 @@ SURICATA_TAG=${suricata_tag}
 SURICATA_VERSION=${suricata_version}
 RELEASE_NAME=${release_name}
 EOF_INFO
-    cat >"${release_root}/README.txt" <<EOF_README
+    cat >"${component_root}/README.txt" <<EOF_README
 Wazuh Suricata package ${builder_version}
 Contains Suricata upstream release ${suricata_version} (${suricata_tag}) for ${platform_os}/${platform_arch}.
 EOF_README
@@ -395,8 +399,8 @@ bundle_linux_runtime_libs() {
             fi
         done
         if [[ -n "${found}" ]]; then
-            mkdir -p "${release_root}/lib"
-            cp "${found}" "${release_root}/lib/"
+            mkdir -p "${component_root}/lib"
+            cp "${found}" "${component_root}/lib/"
             copied=1
         fi
     done
@@ -411,7 +415,7 @@ wrap_linux_binaries() {
         return 0
     fi
 
-    local bin_dir="${release_root}/bin"
+    local bin_dir="${component_root}/bin"
     for name in suricata suricatactl suricatasc; do
         local target="${bin_dir}/${name}"
         if [[ -x "${target}" && ! -L "${target}" ]]; then
@@ -445,7 +449,7 @@ package_release() {
     mkdir -p "${artifact_root}" "${sbom_dir}"
 
     cp -R "${release_root}/." "${artifact_root}/"
-    prune_payload_directory "${artifact_root}"
+    prune_payload_directory "${artifact_root}${component_prefix}"
 
     generate_sboms "${artifact_root}" "${sbom_dir}/${outbase}.sbom.spdx.json" "${sbom_dir}/${outbase}.sbom.cdx.json"
     generate_pom "${pom_file}" "${outbase}" "${builder_version}" "${suricata_tag}" "${suricata_version}"
@@ -489,9 +493,9 @@ build_suricata() {
     fi
 
     local configure_args=(
-        --prefix="${release_root}"
-        --sysconfdir="${release_root}/etc"
-        --localstatedir="${release_root}/var"
+        --prefix="${component_prefix}"
+        --sysconfdir="${component_prefix}/etc"
+        --localstatedir="${component_prefix}/var"
         --disable-gccmarch-native
     )
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
@@ -499,12 +503,15 @@ build_suricata() {
     local revision_header="${build_dir}/revision.h"
     printf '#define REVISION "%s"\n' "${escaped_revision}" > "${revision_header}"
 
-    local configure_cppflags="${CPPFLAGS:-} -include ${revision_header}"
-    env CPPFLAGS="${configure_cppflags}" ./configure "${configure_args[@]}"
+    local old_cppflags="${CPPFLAGS:-}"
+    CPPFLAGS="${old_cppflags} -include ${revision_header}"
+    export CPPFLAGS
+    ./configure "${configure_args[@]}"
     make -j "${jobs}"
-    make install
-    make install-conf || true
-    make install-rules || true
+    make DESTDIR="${release_root}" install
+    make DESTDIR="${release_root}" install-conf || true
+    make DESTDIR="${release_root}" install-rules || true
+    CPPFLAGS="${old_cppflags}"
     popd >/dev/null
 
     prune_release_payload
