@@ -170,6 +170,13 @@ bh_require_libraries() {
     local missing=()
     for lib in "${libs[@]}"; do
         if ! pkg-config --exists "${lib}" >/dev/null 2>&1; then
+            case "${lib}" in
+                libmagic)
+                    if [[ -f /usr/include/magic.h || -f /usr/local/include/magic.h ]]; then
+                        continue
+                    fi
+                    ;;
+            esac
             missing+=("${lib}")
         fi
     done
