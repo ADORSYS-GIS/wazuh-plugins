@@ -18,6 +18,7 @@ dependencies:
     - python3-venv
     - python3-pip
     - ca-certificates
+    - cbindgen
     - curl
     - build-essential
     - autoconf
@@ -47,8 +48,8 @@ dependencies:
     - libhtp-dev
     - rpm
     - gnupg2
-  bash:
-    - cargo install --locked --force cbindgen --version 0.26.0
+  bash: []
+    #- cargo install --locked --force cbindgen --version 0.26.0
   brew:
     - autoconf
     - automake
