@@ -179,6 +179,35 @@ bh_require_libraries() {
     fi
 }
 
+bh_ensure_pkg_config_path() {
+    if ! command -v dpkg-architecture >/dev/null 2>&1; then
+        return 0
+    fi
+    local multiarch
+    multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
+    local dirs=()
+    if [[ -n "${multiarch}" ]]; then
+        dirs+=("/usr/lib/${multiarch}/pkgconfig")
+    fi
+    dirs+=("/usr/lib/pkgconfig" "/usr/share/pkgconfig")
+
+    local new_path="${PKG_CONFIG_PATH:-}"
+    for dir in "${dirs[@]}"; do
+        if [[ -d "${dir}" ]]; then
+            if [[ -z "${new_path}" ]]; then
+                new_path="${dir}"
+            elif [[ ":${new_path}:" != *":${dir}:"* ]]; then
+                new_path="${dir}:${new_path}"
+            fi
+        fi
+    done
+    if [[ -n "${new_path}" ]]; then
+        export PKG_CONFIG_PATH="${new_path}"
+    fi
+}
+
+bh_ensure_pkg_config_path
+
 bh_prune_payload_directory() {
     local target_dir="$1"
     [[ -d "${target_dir}" ]] || return 0
