@@ -329,6 +329,44 @@ Contains YARA upstream release ${yara_version} for ${platform_os}/${platform_arc
 EOF_README
 }
 
+bundle_linux_runtime_libs() {
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    local multiarch=""
+    if command -v dpkg-architecture >/dev/null 2>&1; then
+        multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
+    fi
+
+    local search_paths=()
+    if [[ -n "${multiarch}" ]]; then
+        search_paths+=("/usr/lib/${multiarch}")
+    fi
+    search_paths+=("/usr/lib" "/usr/lib64")
+
+    local libs=(libcrypto.so.1.1 libssl.so.1.1)
+    local copied=0
+    for lib in "${libs[@]}"; do
+        local found=""
+        for base in "${search_paths[@]}"; do
+            if [[ -f "${base}/${lib}" ]]; then
+                found="${base}/${lib}"
+                break
+            fi
+        done
+        if [[ -n "${found}" ]]; then
+            mkdir -p "${release_root}/lib"
+            cp "${found}" "${release_root}/lib/"
+            copied=1
+        fi
+    done
+
+    if [[ "${copied}" -eq 0 ]]; then
+        echo "Warning: Unable to bundle OpenSSL runtime libraries; YARA may expect system libcrypto/libssl." >&2
+    fi
+}
+
 main() {
     ensure_linux_dependencies
     ensure_macos_environment
@@ -374,6 +412,7 @@ main() {
     popd >/dev/null
 
     prune_release_payload
+    bundle_linux_runtime_libs
     install_rules_and_scripts
     write_metadata "${version}" "${yara_version}"
 
