@@ -26,7 +26,7 @@ jobs:
           builders = []
           root = Path('builders')
           if root.exists():
-              for path in sorted(p for p in root.iterdir() if (path / 'config.yaml').exists()):
+              for path in sorted(p for p in root.iterdir() if (p / 'config.yaml').exists()):
                   builders.append(path.name)
 
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
