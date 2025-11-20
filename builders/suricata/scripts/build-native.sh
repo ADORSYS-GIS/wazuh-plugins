@@ -540,19 +540,15 @@ main() {
     release_name="suricata-${version}-${platform_os}-${platform_arch}"
     prepare_dest
 
-    local resolver_script="${script_dir}/resolve_suricata_version.py"
-    local suricata_tag
-    if ! suricata_tag=$(python3 "${resolver_script}"); then
-        echo "Unable to resolve a Suricata release tag" >&2
+    local suricata_version="${PIPELINE_VERSION:-}"
+    if [[ -z "${suricata_version// }" ]]; then
+        echo "PIPELINE_VERSION not provided" >&2
         exit 1
     fi
 
-    local suricata_version="${suricata_tag}"
-    if [[ "${suricata_version}" == suricata-* ]]; then
-        suricata_version="${suricata_version#suricata-}"
-    fi
-    if [[ "${suricata_version}" == v* ]]; then
-        suricata_version="${suricata_version#v}"
+    local suricata_tag="${suricata_version}"
+    if [[ "${suricata_tag}" != suricata-* ]]; then
+        suricata_tag="suricata-${suricata_version}"
     fi
 
     build_suricata "${suricata_tag}" "${suricata_version}"

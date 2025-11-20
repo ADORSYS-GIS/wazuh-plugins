@@ -408,16 +408,16 @@ main() {
     component_root="${release_root}${component_prefix}"
     prepare_dest
 
-    local resolver_script="${script_dir}/resolve_yara_version.py"
-    local yara_version
-    if ! yara_version=$(python3 "${resolver_script}"); then
-        echo "Unable to resolve a YARA version" >&2
+    local source_version="${PIPELINE_VERSION:-}"
+    if [[ -z "${source_version// }" ]]; then
+        echo "PIPELINE_VERSION not provided" >&2
         exit 1
     fi
+    local yara_version="${source_version}"
     local jobs="$(detect_make_jobs)"
     build_dir="$(mktemp -d)"
 
-    curl -fsSL "https://github.com/VirusTotal/yara/archive/refs/tags/${yara_version}.tar.gz" -o "${build_dir}/yara.tar.gz"
+    curl -fsSL "https://github.com/VirusTotal/yara/archive/refs/tags/${source_version}.tar.gz" -o "${build_dir}/yara.tar.gz"
     mkdir -p "${build_dir}/src"
     tar -xzf "${build_dir}/yara.tar.gz" --strip-components=1 -C "${build_dir}/src"
 
