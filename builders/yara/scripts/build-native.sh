@@ -432,8 +432,9 @@ main() {
     local revision_cppflag="-DREVISION=\"${revision_label}\""
 
     local old_cppflags="${CPPFLAGS:-}"
-    CPPFLAGS="${old_cppflags} ${revision_cppflag}" \
-    LDFLAGS="${LDFLAGS:-} ${rpath_flag}" ./configure "${configure_args[@]}"
+    local configure_cppflags="${old_cppflags} ${revision_cppflag}"
+    local configure_ldflags="${LDFLAGS:-} ${rpath_flag}"
+    env CPPFLAGS="${configure_cppflags}" LDFLAGS="${configure_ldflags}" ./configure "${configure_args[@]}"
     CPPFLAGS="${old_cppflags}"
     make -j "${jobs}"
     make install
