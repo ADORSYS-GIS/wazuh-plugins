@@ -91,6 +91,7 @@ jobs:
             automake \
             libtool \
             pkg-config \
+            dpkg-dev \
             flex \
             bison \
             libssl-dev \
