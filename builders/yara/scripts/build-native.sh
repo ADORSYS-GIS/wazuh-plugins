@@ -429,11 +429,17 @@ main() {
     )
 
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
-    local revision_cppflag="-DREVISION=\"${revision_label}\""
+    local escaped_revision="${revision_label//\"/\\\"}"
+    local revision_cppflag="-DREVISION=\\\"${escaped_revision}\\\""
 
-    export CPPFLAGS="${CPPFLAGS:-} ${revision_cppflag}"
-    export LDFLAGS="${LDFLAGS:-} ${rpath_flag}"
+    local old_cppflags="${CPPFLAGS:-}"
+    local old_ldflags="${LDFLAGS:-}"
+    CPPFLAGS="${old_cppflags} ${revision_cppflag}"
+    LDFLAGS="${old_ldflags} ${rpath_flag}"
+    export CPPFLAGS LDFLAGS
     ./configure "${configure_args[@]}"
+    CPPFLAGS="${old_cppflags}"
+    LDFLAGS="${old_ldflags}"
     make -j "${jobs}"
     make install
     popd >/dev/null
