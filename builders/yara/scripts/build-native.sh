@@ -367,6 +367,28 @@ bundle_linux_runtime_libs() {
     fi
 }
 
+wrap_linux_binaries() {
+    if [[ "${platform_os}" != "linux" ]]; then
+        return 0
+    fi
+
+    local bin_dir="${release_root}/bin"
+    for name in yara yarac; do
+        local target="${bin_dir}/${name}"
+        if [[ -x "${target}" && ! -L "${target}" ]]; then
+            mv "${target}" "${target}.real"
+            cat >"${target}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="${script_dir}/../lib:${LD_LIBRARY_PATH:-}"
+exec "${script_dir}/$(basename "$0").real" "$@"
+EOF
+            chmod +x "${target}"
+        fi
+    done
+}
+
 main() {
     ensure_linux_dependencies
     ensure_macos_environment
@@ -413,6 +435,7 @@ main() {
 
     prune_release_payload
     bundle_linux_runtime_libs
+    wrap_linux_binaries
     install_rules_and_scripts
     write_metadata "${version}" "${yara_version}"
 
