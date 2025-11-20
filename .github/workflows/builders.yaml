@@ -22,6 +22,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       has_builders: ${{ steps.set-matrix.outputs.has_builders }}
       builder_names: ${{ steps.set-matrix.outputs.builder_names }}
+      repo_lc: ${{ steps.set-matrix.outputs.repo_lc }}
     steps:
       - uses: actions/checkout@v5
       - id: set-matrix
@@ -41,11 +42,13 @@ jobs:
                       builders.append({'builder': path.name, 'config': str(config)})
                       builder_names.append(path.name)
 
+          repo_lc = os.environ['GITHUB_REPOSITORY'].lower()
           matrix = {'include': builders}
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
               handle.write(f"matrix={json.dumps(matrix)}\n")
               handle.write(f"has_builders={'true' if builders else 'false'}\n")
               handle.write(f"builder_names={json.dumps(builder_names)}\n")
+              handle.write(f"repo_lc={repo_lc}\n")
           PY
 
   build:
@@ -60,71 +63,27 @@ jobs:
           - os: ubuntu-24.04
             arch: amd64
             triplet: linux-amd64
-            container_tag: "20.04"
           - os: ubuntu-24.04-arm
             arch: arm64
             triplet: linux-arm64
-            container_tag: "20.04"
     runs-on: ${{ matrix.os }}
     container:
-      image: ubuntu:${{ matrix.container_tag }}
+      image: ghcr.io/${{ needs.discover.outputs.repo_lc }}/cache-builders:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
       options: --user 0:0
     env:
       DEBIAN_FRONTEND: noninteractive
       TZ: Etc/UTC
       PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
     steps:
-      - name: Install base packages
+      - uses: actions/checkout@v5
+      - name: Set up pkg-config paths
         run: |
           set -euo pipefail
-          apt-get update
-          ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime
-          apt-get install -y --no-install-recommends \
-            sudo \
-            git \
-            python3 \
-            python3-venv \
-            python3-pip \
-            ca-certificates \
-            curl \
-            build-essential \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            dpkg-dev \
-            flex \
-            bison \
-            libssl-dev \
-            libpcre2-dev \
-            libmagic-dev \
-            libjansson-dev \
-            libprotobuf-c-dev \
-            protobuf-c-compiler \
-            cmake \
-            ninja-build \
-            rustc \
-            cargo \
-            cbindgen \
-            libyaml-dev \
-            libpcap-dev \
-            libcap-ng-dev \
-            libnss3-dev \
-            libnspr4-dev \
-            liblz4-dev \
-            liblzma-dev \
-            libnet1-dev \
-            zlib1g-dev \
-            libhtp-dev
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
-          apt-get update
-          apt-get install -y --no-install-recommends gh
           multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
           echo "PKG_CONFIG_PATH=/usr/lib/${multiarch}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
-          rm -rf /var/lib/apt/lists/*
-      - uses: actions/checkout@v5
       - name: Cache Python venv
         uses: actions/cache@v4
         with:
