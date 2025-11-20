@@ -430,9 +430,10 @@ main() {
 
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
     local escaped_revision="${revision_label//\"/\\\"}"
-    local revision_cppflag="-DREVISION=\\\"${escaped_revision}\\\""
+    local revision_header="${build_dir}/revision.h"
+    printf '#define REVISION "%s"\n' "${escaped_revision}" > "${revision_header}"
 
-    local configure_cppflags="${CPPFLAGS:-} ${revision_cppflag}"
+    local configure_cppflags="${CPPFLAGS:-} -include ${revision_header}"
     local configure_ldflags="${LDFLAGS:-} ${rpath_flag}"
     env CPPFLAGS="${configure_cppflags}" \
         LDFLAGS="${configure_ldflags}" \
