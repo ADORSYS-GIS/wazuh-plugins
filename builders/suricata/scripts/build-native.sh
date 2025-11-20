@@ -494,8 +494,13 @@ build_suricata() {
         --localstatedir="${release_root}/var"
         --disable-gccmarch-native
     )
+    local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
+    local revision_cppflag
+    printf -v revision_cppflag '-DREVISION="%s"' "${revision_label}"
 
-    ./configure "${configure_args[@]}"
+    local old_cppflags="${CPPFLAGS:-}"
+    CPPFLAGS="${old_cppflags} ${revision_cppflag}" ./configure "${configure_args[@]}"
+    CPPFLAGS="${old_cppflags}"
     make -j "${jobs}"
     make install
     make install-conf || true
