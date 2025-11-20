@@ -497,10 +497,8 @@ build_suricata() {
     local revision_label="Wazuh Plugin Build ${PIPELINE_COMMIT:-unknown}"
     local revision_cppflag="-DREVISION=\"${revision_label}\""
 
-    local old_cppflags="${CPPFLAGS:-}"
-    local configure_cppflags="${old_cppflags} ${revision_cppflag}"
-    env CPPFLAGS="${configure_cppflags}" ./configure "${configure_args[@]}"
-    CPPFLAGS="${old_cppflags}"
+    export CPPFLAGS="${CPPFLAGS:-} ${revision_cppflag}"
+    ./configure "${configure_args[@]}"
     make -j "${jobs}"
     make install
     make install-conf || true
