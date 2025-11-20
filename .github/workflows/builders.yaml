@@ -60,11 +60,11 @@ jobs:
           - os: ubuntu-24.04
             arch: amd64
             triplet: linux-amd64
-            container_tag: "20.04"
+            container_tag: "18.04"
           - os: ubuntu-24.04-arm
             arch: arm64
             triplet: linux-arm64
-            container_tag: "20.04"
+            container_tag: "18.04"
     runs-on: ${{ matrix.os }}
     container:
       image: ubuntu:${{ matrix.container_tag }}
