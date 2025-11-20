@@ -4,6 +4,10 @@ permissions:
   contents: write
   packages: write
 
+defaults:
+  run:
+    shell: bash
+
 on:
   push:
     branches:
