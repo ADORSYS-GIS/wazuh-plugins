@@ -17,7 +17,7 @@ dependencies:
     - python3-venv
     - python3-pip
     - ca-certificates
-    - cbindgen
+    #- cbindgen
     - curl
     - build-essential
     - autoconf
