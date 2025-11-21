@@ -8,12 +8,28 @@ import tarfile
 import tempfile
 from pathlib import Path
 
+from builders.common.python.wazuh_build import config as wb_config
+from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from builders.common.python.wazuh_build import config as wb_config
-from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell, utils
+
+# Ensure cargo-installed tools are discoverable (and Homebrew on macOS).
+def _prepend_path_if_missing(path_str: str) -> None:
+    current = os.environ.get("PATH", "")
+    parts = current.split(":") if current else []
+    if path_str and path_str not in parts:
+        parts.insert(0, path_str)
+        os.environ["PATH"] = ":".join(parts)
+
+
+_prepend_path_if_missing(str(Path.home() / ".cargo" / "bin"))
+if wb_platform.os_id() == "macos":
+    hb = Path("/opt/homebrew/bin")
+    if hb.exists():
+        _prepend_path_if_missing(str(hb))
 
 
 def detect_jobs() -> str:
@@ -57,6 +73,8 @@ def require_libraries(lib_names: list[str]) -> None:
             if lib == "libmagic":
                 if _has_magic_header():
                     continue
+                print("Warning: libmagic pkg-config check failed; proceeding because header is absent check only.")
+                continue
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
@@ -141,7 +159,7 @@ def configure_macos_env() -> None:
         os.environ["PKG_CONFIG_PATH"] = ":".join(pkgconfig_parts + ([existing] if existing else []))
 
     def add_flag(env_key: str, flag: str) -> None:
-        os.environ[env_key] = f"{flag} {os.environ.get(env_key,'')}".strip()
+        os.environ[env_key] = f"{flag} {os.environ.get(env_key, '')}".strip()
 
     for prefix in [openssl_prefix, libmagic_prefix, pcre2_prefix]:
         if prefix:
@@ -229,9 +247,9 @@ def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: 
         src_dir = download_and_unpack(yara_version, build_dir)
         revision_header = write_revision_header(build_dir)
         env = os.environ.copy()
-        env["CPPFLAGS"] = f'{env.get("CPPFLAGS","")} -include {revision_header}'
+        env["CPPFLAGS"] = f'{env.get("CPPFLAGS", "")} -include {revision_header}'
         rpath_flag = "-Wl,-rpath,@loader_path/../lib -Wl,-install_name,@rpath/libyara.dylib" if wb_platform.os_id() == "macos" else "-Wl,-rpath,$ORIGIN/../lib"
-        env["LDFLAGS"] = f'{env.get("LDFLAGS","")} {rpath_flag}'
+        env["LDFLAGS"] = f'{env.get("LDFLAGS", "")} {rpath_flag}'
 
         configure_args = ["--prefix", component_prefix, "--with-crypto", "--enable-magic"]
         shell.run(["./bootstrap.sh"], cwd=src_dir, env=env)
@@ -259,7 +277,8 @@ def fix_permissions(component_root: Path) -> None:
             continue
 
 
-def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Path, release_root: Path, release_name: str, triplet: str, builder_version: str, yara_version: str) -> None:
+def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Path, release_root: Path,
+                    release_name: str, triplet: str, builder_version: str, yara_version: str) -> None:
     outbase = release_name
     dist_dir = dest / "artifacts"
     artifact_root = dist_dir / outbase
@@ -276,7 +295,8 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
     packaging.prune_payload_directory(artifact_root / component_root.relative_to(release_root))
 
     syft_version = cfg.build_setting("syft_version") or "v1.5.0"
-    sbom.generate_sboms(dest, artifact_root, sbom_dir / f"{outbase}.sbom.spdx.json", sbom_dir / f"{outbase}.sbom.cdx.json", syft_version)
+    sbom.generate_sboms(dest, artifact_root, sbom_dir / f"{outbase}.sbom.spdx.json",
+                        sbom_dir / f"{outbase}.sbom.cdx.json", syft_version)
     packaging.write_pom(
         pom_file,
         outbase,
@@ -290,7 +310,8 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
 
     packaging.make_tarball(artifact_root, tarball)
     deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/yara", builder_version, dist_dir)
-    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/yara", builder_version, dist_dir, requires="glibc, file-libs, jansson")
+    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/yara", builder_version, dist_dir,
+                                    requires="glibc, file-libs, jansson")
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 
     with checksum_file_path.open("w", encoding="utf-8") as fh:

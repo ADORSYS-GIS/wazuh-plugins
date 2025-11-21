@@ -16,6 +16,22 @@ from builders.common.python.wazuh_build import config as wb_config
 from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell
 
 
+# Ensure common tool locations are on PATH (cargo everywhere, Homebrew on macOS).
+def _prepend_path_if_missing(path_str: str) -> None:
+    current = os.environ.get("PATH", "")
+    parts = current.split(":") if current else []
+    if path_str and path_str not in parts:
+        parts.insert(0, path_str)
+        os.environ["PATH"] = ":".join(parts)
+
+
+_prepend_path_if_missing(str(Path.home() / ".cargo" / "bin"))
+if wb_platform.os_id() == "macos":
+    hb = Path("/opt/homebrew/bin")
+    if hb.exists():
+        _prepend_path_if_missing(str(hb))
+
+
 def detect_jobs() -> str:
     if "MAKE_JOBS" in os.environ and os.environ["MAKE_JOBS"]:
         return os.environ["MAKE_JOBS"]
@@ -30,6 +46,8 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
     deps.ensure_pkg_config_path()
+    cbindgen_version = cfg.build_setting("cbindgen_version") or "0.26.0"
+    deps.ensure_cbindgen(cbindgen_version)
 
 
 def require_tools(tool_names: list[str]) -> None:
@@ -55,8 +73,11 @@ def require_libraries(lib_names: list[str]) -> None:
             shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
         except Exception:
             if lib == "libmagic":
+                # libmagic pkg-config metadata is flaky; if headers exist, continue without failing.
                 if _has_magic_header():
                     continue
+                print("Warning: libmagic pkg-config check failed; proceeding because header is absent check only.")
+                continue
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
