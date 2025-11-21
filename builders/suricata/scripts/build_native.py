@@ -45,9 +45,9 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
     if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
+    
     deps.ensure_pkg_config_path()
-    cbindgen_version = cfg.build_setting("cbindgen_version") or "0.26.0"
-    deps.ensure_cbindgen(cbindgen_version)
+    deps.ensure_cbindgen()
 
 
 def require_tools(tool_names: list[str]) -> None:

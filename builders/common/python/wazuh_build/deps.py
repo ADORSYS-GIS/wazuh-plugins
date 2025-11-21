@@ -48,6 +48,29 @@ def ensure_syft(version: str, tools_dir: Path) -> Path:
     return syft_target
 
 
+def ensure_cbindgen() -> None:
+    def current_version() -> Optional[str]:
+        if not shell.command_exists("cbindgen"):
+            return None
+        try:
+            result = subprocess.check_output(["cbindgen", "--version"], text=True).strip()
+            return result.split()[-1]
+        except Exception:
+            return None
+
+    if current_version():
+        return
+    if not shell.command_exists("cargo"):
+        raise RuntimeError("cargo not available to install cbindgen")
+    
+    cache_dir = utils.DEFAULT_CACHE_DIR / "cargo-bin"
+    env = os.environ.copy()
+    env["CARGO_INSTALL_ROOT"] = str(cache_dir)
+    shell.run(["cargo", "install", "--locked", "--force", "cbindgen"], env=env)
+    # Add to PATH
+    os.environ["PATH"] = f"{cache_dir}/bin:{os.environ.get('PATH','')}"
+
+
 def _version_at_least(version: str, required: str) -> bool:
     def normalize(v: str) -> List[int]:
         return [int(x) for x in v.split(".") if x.isdigit()]
