@@ -53,3 +53,25 @@ def _version_at_least(version: str, required: str) -> bool:
         return [int(x) for x in v.split(".") if x.isdigit()]
 
     return normalize(version) >= normalize(required)
+
+
+def ensure_pkg_config_path() -> None:
+    """Populate PKG_CONFIG_PATH with common locations (including multiarch) if missing."""
+    if "PKG_CONFIG_PATH" in os.environ and os.environ["PKG_CONFIG_PATH"]:
+        return
+    candidates = []
+    multiarch = ""
+    try:
+        result = shell.run(["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], capture=True, check=False)
+        multiarch = (result.stdout or "").strip()
+    except Exception:
+        multiarch = ""
+    if multiarch:
+        candidates.append(f"/usr/lib/{multiarch}/pkgconfig")
+    candidates.extend(["/usr/lib/pkgconfig", "/usr/share/pkgconfig"])
+    existing = os.environ.get("PKG_CONFIG_PATH", "")
+    parts = [c for c in candidates if Path(c).exists()]
+    if existing:
+        parts.append(existing)
+    if parts:
+        os.environ["PKG_CONFIG_PATH"] = ":".join(parts)

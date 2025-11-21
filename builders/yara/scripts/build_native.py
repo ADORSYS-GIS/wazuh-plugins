@@ -29,6 +29,7 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
     if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
+    deps.ensure_pkg_config_path()
 
 
 def require_tools(tool_names: list[str]) -> None:

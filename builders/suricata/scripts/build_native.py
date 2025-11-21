@@ -29,6 +29,7 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
     if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
+    deps.ensure_pkg_config_path()
 
 
 def require_tools(tool_names: list[str]) -> None:
@@ -309,7 +310,10 @@ def main() -> None:
 
     ensure_dependencies(cfg)
     require_tools(["curl", "tar", "make", "gcc", "autoconf", "automake", "pkg-config", "python3"])
-    require_libraries(["libpcap", "libpcre2-8", "yaml-0.1", "jansson", "libmagic", "liblz4", "zlib", "libcap-ng"])
+    libs = ["libpcap", "libpcre2-8", "yaml-0.1", "jansson", "libmagic", "liblz4", "zlib"]
+    if wb_platform.os_id() == "linux":
+        libs.append("libcap-ng")
+    require_libraries(libs)
 
     build_suricata(cfg, dest, triplet, version, rule_bundle)
 
