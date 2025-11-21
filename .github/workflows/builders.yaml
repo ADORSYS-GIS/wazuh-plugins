@@ -12,7 +12,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'builders/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
   pull_request:
+    paths:
+      - 'builders/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
@@ -29,7 +37,7 @@ jobs:
         name: Set matrix
         run: python .github/scripts/discover_matrix.py
 
-  build:
+  build-linux:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
     strategy:
