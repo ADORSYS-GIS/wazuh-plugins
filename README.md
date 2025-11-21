@@ -37,6 +37,7 @@ A curated collection of automation and integration plugins that extend the [Wazu
 │       └── release.txt
 ├── .github/
 │   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
+│   ├── scripts/package_artifacts.py # Gathers packaged artifacts for upload in CI
 │   └── workflows/builders.yaml      # GitHub Actions workflow that iterates over every builder
 └── README.md
 ```
@@ -65,7 +66,7 @@ Some deployments prefer to ship companion services—such as [Suricata](https://
    - `macos-14` / `arm64` → `macos-arm64`
 4. **Document build arguments** – Capture supported `--build-arg`s (e.g., `SURICATA_VERSION`, `RULE_BUNDLE`) inside `builders/<name>/README.md` so users know how to customize the resulting bundle.
 5. **Define release metadata** – Every appliance folder includes a `config.yaml` (the pipeline contract consumed by automation), a `version.txt` (single source of truth for build arguments), and a `release.txt` (the Git tag/Release version). `.github/scripts/run_builder.py` consumes these files, runs lint/test/build steps locally or inside CI, and drops outputs into `dist/<triplet>/` whether the run targets Linux (`linux-*`) or macOS (`macos-*`).
-6. **Let GitHub Actions do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, runs native builds on `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm` (arm64), and fans out to `macos-13` and `macos-14` runners. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`.
+6. **Let CI do the heavy lifting** – `.github/workflows/builders.yaml` discovers each `builders/*/config.yaml` on every push/PR, runs native builds on `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm` (arm64), and fans out to `macos-13` and `macos-14` runners. When the workflow runs on `main` every job archives its target-specific `dist/<triplet>/` folder, tags a GitHub Release using `<name>-v$(cat release.txt)`, and uploads the tarballs via `softprops/action-gh-release`. The same `run_builder.py` and `package_artifacts.py` entry points can be invoked from other CI systems (Jenkins, Tekton, GitLab) or locally; see below.
 
 > **Future tooling**: When introducing additional inspection or enrichment services, keep them under `builders/` and adopt the native workflow above. Doing so ensures that CI/CD jobs can enumerate all appliances and publish them with consistent tagging semantics.
 
@@ -113,3 +114,20 @@ Contributions are welcome! Please open an issue describing the integration or im
 ## License
 
 Unless noted otherwise, all code in this repository is made available under the MIT License. See `LICENSE` for the full text.
+## Running builders locally or in other CI systems
+
+You do not need GitHub Actions to execute the appliance pipelines. The helper scripts live in-repo and work anywhere Python 3.8+ is available.
+
+- **Prereqs**: Python 3.8+, `pyyaml` (`pip install -r .github/workflows/venv-requirements.txt`), `curl`, `tar`, `make`, `pkg-config`, and a package manager (`apt` or Homebrew) so the builder scripts can install dependencies declared in `builders/*/config.yaml`. If you want a consistent environment, pull the cache image `ghcr.io/<org>/<repo>/cache-builders:latest` and run inside it.
+- **Example (Linux/macOS host or Jenkins/Tekton step)**:
+  ```bash
+  python3 -m venv .venv && source .venv/bin/activate
+  pip install -r .github/workflows/venv-requirements.txt
+  export PIPELINE_VERSION="$(cat builders/yara/version.txt)"
+  export PIPELINE_COMMIT="$(git rev-parse HEAD)"
+  export PIPELINE_REF="$(git rev-parse --abbrev-ref HEAD)"
+  python .github/scripts/run_builder.py --artifact-triplet linux-amd64 builders/yara/config.yaml
+  python .github/scripts/package_artifacts.py yara linux-amd64
+  ```
+  Swap builder name/triplet as needed (e.g., suricata, macos-arm64). Artifacts land under `artifacts/<builder>-<version>-<triplet>/` ready for your CI to archive or publish.
+- **Containers**: For parity with GitHub runners, start a job/pod using the cache image and run the same commands; no code changes are required because the build scripts read everything from `config.yaml` and environment variables.
