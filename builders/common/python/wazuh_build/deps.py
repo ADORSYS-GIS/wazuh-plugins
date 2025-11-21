@@ -58,7 +58,8 @@ def ensure_cbindgen() -> None:
         except Exception:
             return None
 
-    if current_version():
+    cur = current_version()
+    if cur and _version_at_least(cur, "0.20.0"):
         return
     if not shell.command_exists("cargo"):
         raise RuntimeError("cargo not available to install cbindgen")
