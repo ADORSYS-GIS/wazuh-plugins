@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from builders.common.python.wazuh_build import config as wb_config
-from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell, utils
+from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell
 
 
 def detect_jobs() -> str:
@@ -29,9 +29,6 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
     if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
-
-    cbindgen_version = cfg.build_setting("cbindgen_version") or "0.26.0"
-    deps.ensure_cbindgen(cbindgen_version)
 
 
 def require_tools(tool_names: list[str]) -> None:
@@ -132,9 +129,9 @@ def configure_macos_env() -> None:
             include_dir = Path(prefix) / "include"
             lib_dir = Path(prefix) / "lib"
             if include_dir.exists():
-                os.environ["CPPFLAGS"] = f"-I{include_dir} {os.environ.get('CPPFLAGS','')}"
+                os.environ["CPPFLAGS"] = f"-I{include_dir} {os.environ.get('CPPFLAGS', '')}"
             if lib_dir.exists():
-                os.environ["LDFLAGS"] = f"-L{lib_dir} {os.environ.get('LDFLAGS','')}"
+                os.environ["LDFLAGS"] = f"-L{lib_dir} {os.environ.get('LDFLAGS', '')}"
     if pkgconfig_paths:
         existing = os.environ.get("PKG_CONFIG_PATH", "")
         os.environ["PKG_CONFIG_PATH"] = ":".join(pkgconfig_paths + ([existing] if existing else []))
@@ -171,7 +168,8 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
         script.chmod(0o755)
 
 
-def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, suricata_tag: str, suricata_version: str) -> None:
+def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, suricata_tag: str,
+                   suricata_version: str) -> None:
     (component_root / "BUILDINFO.txt").write_text(
         "\n".join(
             [
@@ -212,7 +210,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
         revision_header = write_revision_header(build_dir)
 
         env = os.environ.copy()
-        env["CPPFLAGS"] = f'{env.get("CPPFLAGS","")} -include {revision_header}'
+        env["CPPFLAGS"] = f'{env.get("CPPFLAGS", "")} -include {revision_header}'
 
         configure_args = [
             "--prefix",
@@ -237,7 +235,8 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
     install_rules_and_scripts(rule_bundle, component_root, Path(__file__).parent)
     write_metadata(component_root, triplet, release_name, version, suricata_tag, suricata_version)
     fix_permissions(component_root)
-    package_release(cfg, dest, component_root, release_root, release_name, triplet, version, suricata_tag, suricata_version)
+    package_release(cfg, dest, component_root, release_root, release_name, triplet, version, suricata_tag,
+                    suricata_version)
 
 
 def fix_permissions(component_root: Path) -> None:
@@ -251,7 +250,9 @@ def fix_permissions(component_root: Path) -> None:
             continue
 
 
-def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Path, release_root: Path, release_name: str, triplet: str, builder_version: str, suricata_tag: str, suricata_version: str) -> None:
+def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Path, release_root: Path,
+                    release_name: str, triplet: str, builder_version: str, suricata_tag: str,
+                    suricata_version: str) -> None:
     outbase = release_name
     dist_dir = dest / "artifacts"
     artifact_root = dist_dir / outbase
@@ -268,7 +269,8 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
     packaging.prune_payload_directory(artifact_root / component_root.relative_to(release_root))
 
     syft_version = cfg.build_setting("syft_version") or "v1.5.0"
-    sbom.generate_sboms(dest, artifact_root, sbom_dir / f"{outbase}.sbom.spdx.json", sbom_dir / f"{outbase}.sbom.cdx.json", syft_version)
+    sbom.generate_sboms(dest, artifact_root, sbom_dir / f"{outbase}.sbom.spdx.json",
+                        sbom_dir / f"{outbase}.sbom.cdx.json", syft_version)
     packaging.write_pom(
         pom_file,
         outbase,
@@ -283,7 +285,8 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
     packaging.make_tarball(artifact_root, tarball)
 
     deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir)
-    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir, requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng")
+    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
+                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng")
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 
     with checksum_file_path.open("w", encoding="utf-8") as fh:

@@ -9,7 +9,6 @@ pipeline:
     dest: dist
 build:
   syft_version: v1.5.0
-  cbindgen_version: "0.26.0"
 dependencies:
   apt:
     - sudo
