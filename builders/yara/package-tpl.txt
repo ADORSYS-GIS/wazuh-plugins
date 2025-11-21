@@ -1,0 +1,6 @@
+Package: yara
+Maintainer: Wazuh Plugins <info@adorsys.com>
+Section: utils
+Priority: optional
+Description: YARA rule scanner packaged for Wazuh deployments
+Depends: libc6 (>= 2.31), libmagic1, libjansson4

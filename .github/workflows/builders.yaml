@@ -4,11 +4,23 @@ permissions:
   contents: write
   packages: write
 
+defaults:
+  run:
+    shell: bash
+
 on:
   push:
     branches:
       - main
+    paths:
+      - 'builders/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
   pull_request:
+    paths:
+      - 'builders/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
@@ -18,92 +30,116 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       has_builders: ${{ steps.set-matrix.outputs.has_builders }}
       builder_names: ${{ steps.set-matrix.outputs.builder_names }}
+      repo_lc: ${{ steps.set-matrix.outputs.repo_lc }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: set-matrix
-        run: |
-          python <<'PY'
-          import json
-          import os
-          from pathlib import Path
+        name: Set matrix
+        run: python .github/scripts/discover_matrix.py
 
-          builders = []
-          builder_names = []
-          root = Path('builders')
-          if root.exists():
-              for path in sorted(p for p in root.iterdir() if p.is_dir()):
-                  config = path / 'config.yaml'
-                  if config.exists():
-                      builders.append({'builder': path.name, 'config': str(config)})
-                      builder_names.append(path.name)
-
-          matrix = {'include': builders}
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
-              handle.write(f"matrix={json.dumps(matrix)}\n")
-              handle.write(f"has_builders={'true' if builders else 'false'}\n")
-              handle.write(f"builder_names={json.dumps(builder_names)}\n")
-          PY
-
-  build:
+  build-linux:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
-    runs-on: ubuntu-latest
-    env:
-      LINUX_TRIPLET: linux-buildx
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+      matrix:
+        builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+            triplet: linux-amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            triplet: linux-arm64
+    runs-on: ${{ matrix.os }}
+    container:
+      image: ghcr.io/${{ needs.discover.outputs.repo_lc }}/cache-builders:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user 0:0
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      TZ: Etc/UTC
+      PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v5
+      - name: Set up pkg-config paths
+        run: |
+          set -euo pipefail
+          multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+          echo "PKG_CONFIG_PATH=/usr/lib/${multiarch}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
+      - name: Cache Python venv
+        uses: actions/cache@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |
-          python3 -m venv .venv
+          if [[ ! -d .venv ]]; then
+            python3 -m venv .venv
+          fi
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pyyaml
+          python -m pip install -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Execute ${{ matrix.builder }} pipeline
-        run: .github/scripts/run_builder.py ${{ matrix.config }}
-      - id: package
+      - name: Build ${{ matrix.triplet }} artifact
+        env:
+          PIPELINE_COMMIT: ${{ github.sha }}
+          PIPELINE_REF: ${{ github.ref }}
+          PIPELINE_REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          builder="${{ matrix.builder }}"
-          triplet="${LINUX_TRIPLET}"
-          release_file="builders/${builder}/release.txt"
-          version=$(cat "${release_file}")
-          artifact_dir="builders/${builder}/dist/${triplet}"
-          package_dir="artifacts"
-          mkdir -p "${package_dir}"
-          archive_name="${builder}-${version}-${triplet}.tar.gz"
-          tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
-      - name: Upload ${{ matrix.builder }} artifact
+          .github/scripts/run_builder.py \
+            --artifact-triplet ${{ matrix.triplet }} \
+            builders/${{ matrix.builder }}/config.yaml
+      - id: package
+        shell: bash
+        name: Package artifacts
+        run: |
+          python .github/scripts/package_artifacts.py \
+            "${{ matrix.builder }}" \
+            "${{ matrix.triplet }}"
+      - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ env.LINUX_TRIPLET }}
-          path: artifacts/${{ steps.package.outputs.archive }}
+          name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
+          path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: artifacts/${{ steps.package.outputs.archive }}
           make_latest: true
-          allowUpdates: true
           draft: false
           prerelease: false
+      - name: Upload ${{ matrix.builder }} release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          files="${{ steps.package.outputs.files }}"
+          if [[ -z "${files// }" ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          asset_paths=()
+          while IFS= read -r path; do
+            if [[ -n "${path// }" ]]; then
+              asset_paths+=("$path")
+            fi
+          done <<< "${files}"
+          if [[ ${#asset_paths[@]} -eq 0 ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
 
   build-macos:
     needs: discover
@@ -112,59 +148,83 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-13, macos-14]
+        os: [macos-13, macos-latest]
         include:
           - os: macos-13
             arch: amd64
             triplet: macos-amd64
-          - os: macos-14
+          - os: macos-latest
             arch: arm64
             triplet: macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |
-          python3 -m venv .venv
+          if [[ ! -d .venv ]]; then
+            python3 -m venv .venv
+          fi
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pyyaml
+          python -m pip install -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
+        env:
+          PIPELINE_COMMIT: ${{ github.sha }}
+          PIPELINE_REF: ${{ github.ref }}
+          PIPELINE_REPO: ${{ github.repository }}
         run: |
           .github/scripts/run_builder.py \
-            --builder-mode native \
             --artifact-triplet ${{ matrix.triplet }} \
             builders/${{ matrix.builder }}/config.yaml
       - id: package
+        shell: bash
         run: |
-          set -euo pipefail
-          builder="${{ matrix.builder }}"
-          triplet="${{ matrix.triplet }}"
-          release_file="builders/${builder}/release.txt"
-          version=$(cat "${release_file}")
-          artifact_dir="builders/${builder}/dist/${triplet}"
-          package_dir="artifacts"
-          mkdir -p "${package_dir}"
-          archive_name="${builder}-${version}-${triplet}.tar.gz"
-          tar -C "${artifact_dir}" -czf "${package_dir}/${archive_name}" .
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "archive=${archive_name}" >> "$GITHUB_OUTPUT"
+          python .github/scripts/package_artifacts.py \
+            "${{ matrix.builder }}" \
+            "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
-          path: artifacts/${{ steps.package.outputs.archive }}
+          path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          files: artifacts/${{ steps.package.outputs.archive }}
           make_latest: true
-          allowUpdates: true
           draft: false
           prerelease: false
+      - name: Upload ${{ matrix.builder }} release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          files="${{ steps.package.outputs.files }}"
+          if [[ -z "${files// }" ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          asset_paths=()
+          while IFS= read -r path; do
+            if [[ -n "${path// }" ]]; then
+              asset_paths+=("$path")
+            fi
+          done <<< "${files}"
+          if [[ ${#asset_paths[@]} -eq 0 ]]; then
+            echo "No release files to upload."
+            exit 0
+          fi
+          gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
