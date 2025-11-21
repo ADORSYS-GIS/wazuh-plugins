@@ -38,12 +38,25 @@ def require_tools(tool_names: list[str]) -> None:
         raise SystemExit(f"Missing required tools: {', '.join(missing)}")
 
 
+def _has_magic_header() -> bool:
+    candidates = [
+        Path("/usr/include/magic.h"),
+        Path("/usr/local/include/magic.h"),
+    ]
+    candidates.extend(Path("/usr/include").glob("*/magic.h"))
+    candidates.extend(Path("/usr/local/include").glob("*/magic.h"))
+    return any(p.exists() for p in candidates)
+
+
 def require_libraries(lib_names: list[str]) -> None:
     missing: list[str] = []
     for lib in lib_names:
         try:
             shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
         except Exception:
+            if lib == "libmagic":
+                if _has_magic_header():
+                    continue
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
