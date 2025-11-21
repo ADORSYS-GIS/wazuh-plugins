@@ -47,8 +47,8 @@ dependencies:
     - libhtp-dev
     - rpm
     - gnupg2
-  bash: []
-    #- cargo install --locked --force cbindgen --version 0.26.0
+  bash: 
+    - cargo install --locked --force cbindgen --version 0.26.0
   brew:
     - autoconf
     - automake

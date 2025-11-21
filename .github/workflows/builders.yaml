@@ -89,6 +89,7 @@ jobs:
             builders/${{ matrix.builder }}/config.yaml
       - id: package
         shell: bash
+        name: Package artifacts
         run: |
           python .github/scripts/package_artifacts.py \
             "${{ matrix.builder }}" \
