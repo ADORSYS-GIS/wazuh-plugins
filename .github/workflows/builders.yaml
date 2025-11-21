@@ -140,9 +140,9 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-intel, macos-latest]
+        os: [macos-13, macos-latest]
         include:
-          - os: macos-intel
+          - os: macos-13
             arch: amd64
             triplet: macos-amd64
           - os: macos-latest
