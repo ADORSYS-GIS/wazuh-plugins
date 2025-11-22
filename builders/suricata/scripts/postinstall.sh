@@ -46,7 +46,10 @@ if ! getent passwd wazuh >/dev/null 2>&1; then
   fi
 fi
 
-# 3) Enable and start systemd service if available
+# 3) Change owner
+chown -R wazuh:wazuh $COMP_PREFIX >/dev/null 2>&1 || true
+
+# 4) Enable and start systemd service if available
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   systemctl daemon-reload || :
   systemctl enable --now "$SERVICE_NAME" || :
