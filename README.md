@@ -28,13 +28,19 @@ A curated collection of automation and integration plugins that extend the [Wazu
 │   │   ├── rules/         # Fake Suricata rule files for local testing
 │   │   ├── version.txt    # Source of truth for the Buildx inputs (base version, args, etc.)
 │   │   └── release.txt    # Release tag written to GitHub when a binary archive ships
-│   └── yara/
+│   ├── yara/
+│   │   ├── config.yaml
+│   │   ├── Dockerfile
+│   │   ├── scripts/
+│   │   ├── rules/
+│   │   ├── version.txt
+│   │   └── release.txt
+│   └── wazuh-agent/
 │       ├── config.yaml
-│       ├── Dockerfile
 │       ├── scripts/
-│       ├── rules/
 │       ├── version.txt
-│       └── release.txt
+│       ├── release.txt
+│       └── README.md
 ├── .github/
 │   ├── scripts/run_builder.py       # Utility that reads config.yaml and executes the declared steps
 │   ├── scripts/package_artifacts.py # Gathers packaged artifacts for upload in CI
@@ -55,11 +61,13 @@ A curated collection of automation and integration plugins that extend the [Wazu
 3. **Bootstrap the runtime** – Each plugin should expose a `main.py` (for Python) or `main.go` (for Go) entry point plus a `plugin.yaml` manifest containing metadata (name, version, permissions, configuration schema, and health checks).
 4. **Wire it into Wazuh** – Register the plugin by adding a `<plugin>` block inside `ossec.conf` or deploy it next to Wazuh using Docker/Kubernetes. Provide environment variables or secrets via your orchestration platform.
 
-## Building Suricata, Yara, and similar appliances
+## Building Suricata, Yara, Wazuh agent, and similar appliances
 
-Some deployments prefer to ship companion services—such as [Suricata](https://suricata.io/) for IDS or [Yara](https://virustotal.github.io/yara/) for file scanning—next to Wazuh so detections and enrichments stay close to the data plane. These builds live under `builders/<appliance>` and follow a shared contract so additional tools can be onboarded without rethinking the layout.
+Some deployments prefer to ship companion services—such as [Suricata](https://suricata.io/) for IDS, [Yara](https://virustotal.github.io/yara/) for file scanning, or upstream-packaged Wazuh agents—next to Wazuh so detections and enrichments stay close to the data plane. These builds live under `builders/<appliance>` and follow a shared contract so additional tools can be onboarded without rethinking the layout.
 
 1. **Place Docker assets** – Drop the `Dockerfile`, helper scripts, and configuration templates inside `builders/<name>/`. Keep runtime artifacts (rulesets, signatures, etc.) versioned so CI can reproduce the image. The Suricata and Yara folders already contain fake Dockerfiles, entrypoints, and rule packs to illustrate how supporting files should be laid out.
+   - The YARA builder now pulls rules from the pinned [YARA Forge](https://github.com/YARAHQ/yara-forge) release declared in `builders/yara/rules/source.json`; run `python builders/yara/scripts/fetch_yara_rules.py --flavor full` (or set `ALLOW_RULE_DOWNLOAD=1`) to populate the cache before building, or point `RULE_BUNDLE` to your own rules.
+   - The Suricata builder pulls Emerging Threats open “emerging-all.rules” for Suricata 8.0.2 per `builders/suricata/rules/source.json`; run `python builders/suricata/scripts/fetch_suricata_rules.py --flavor open` (or set `ALLOW_RULE_DOWNLOAD=1`) to populate the cache, or set `RULE_BUNDLE` to a custom rules path.
 2. **Run native builds** – Each appliance is compiled natively per target architecture using the shared `native_build_script` (defaulting to `scripts/build_native.py`). The helper receives `ARTIFACT_DEST`, `ARTIFACT_TRIPLET`, and `PIPELINE_VERSION` so the same source tree can be packaged per platform without Docker. Linux artifacts land in `builders/<name>/dist/linux-amd64` and `builders/<name>/dist/linux-arm64` when run on Ubuntu 24.04 amd64 and arm runners respectively.
 3. **Build macOS payloads from the same config** – GitHub Actions fans out to dedicated macOS runners that call `.github/scripts/run_builder.py --artifact-triplet <mac target> builders/<name>/config.yaml`. The helper respects the exact same `config.yaml` that Linux uses, executes the declared lint/test/build steps, and writes artifacts under `builders/<name>/dist/<triplet>/`. The two supported triplets are:
    - `macos-13` / `amd64` → `macos-amd64`

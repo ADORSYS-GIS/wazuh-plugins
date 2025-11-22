@@ -65,7 +65,7 @@ def make_tarball(src_dir: Path, tarball: Path) -> None:
         tf.add(src_dir, arcname=src_dir.name)
 
 
-def package_deb(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path) -> Optional[Path]:
+def package_deb(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path, package_name: Optional[str] = None, owner_user: str = "wazuh", owner_group: Optional[str] = None, systemd_unit: Optional[str] = None) -> Optional[Path]:
     if wb_platform.os_id() != "linux":
         return None
     if not shell.command_exists("dpkg-deb"):
@@ -81,16 +81,38 @@ def package_deb(outbase: str, release_dir: Path, component_prefix: str, componen
         component_path = staging / component_prefix.lstrip("/")
         installed_size = int(os.popen(f"du -ks {component_path}").read().split()[0])
         deb_version = component_version[1:] if component_version.startswith("v") else component_version
-        control_content = f"""Package: {Path(component_prefix).name}
+        pkg_name = package_name or Path(component_prefix).name
+        owner_group = owner_group or owner_user
+        control_content = f"""Package: {pkg_name}
 Maintainer: Wazuh Plugins <info@adorsys.com>
 Section: utils
 Priority: optional
-Description: {Path(component_prefix).name} packaged for Wazuh deployments
+Description: {pkg_name} packaged for Wazuh deployments
 Version: {deb_version}
 Architecture: {deb_arch}
 Installed-Size: {installed_size}
 """
         (staging / "DEBIAN" / "control").write_text(control_content)
+        postinst = (staging / "DEBIAN" / "postinst")
+        postinst.write_text(
+            f"""#!/bin/sh
+set -e
+if command -v getent >/dev/null 2>&1; then
+  getent group {owner_group} >/dev/null 2>&1 || addgroup --system {owner_group} >/dev/null 2>&1 || groupadd -r {owner_group} >/dev/null 2>&1 || true
+  getent passwd {owner_user} >/dev/null 2>&1 || adduser --system --ingroup {owner_group} --home {component_prefix} --shell /usr/sbin/nologin {owner_user} >/dev/null 2>&1 || useradd -r -g {owner_group} -d {component_prefix} -s /usr/sbin/nologin {owner_user} >/dev/null 2>&1 || true
+else
+  addgroup --system {owner_group} >/dev/null 2>&1 || groupadd -r {owner_group} >/dev/null 2>&1 || true
+  adduser --system --ingroup {owner_group} --home {component_prefix} --shell /usr/sbin/nologin {owner_user} >/dev/null 2>&1 || useradd -r -g {owner_group} -d {component_prefix} -s /usr/sbin/nologin {owner_user} >/dev/null 2>&1 || true
+fi
+chown -R {owner_user}:{owner_group} {component_prefix} >/dev/null 2>&1 || true
+if [ -n "{systemd_unit or ''}" ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable --now {systemd_unit} >/dev/null 2>&1 || true
+fi
+exit 0
+"""
+        )
+        postinst.chmod(0o755)
         deb_out = dest / f"{outbase}.deb"
         shell.run(["dpkg-deb", "--build", str(staging), str(deb_out)], check=True)
         return deb_out
@@ -100,7 +122,7 @@ Installed-Size: {installed_size}
         shutil.rmtree(staging, ignore_errors=True)
 
 
-def package_rpm(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path, requires: Optional[str] = None) -> Optional[Path]:
+def package_rpm(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path, requires: Optional[str] = None, package_name: Optional[str] = None, owner_user: str = "wazuh", owner_group: Optional[str] = None, systemd_unit: Optional[str] = None) -> Optional[Path]:
     if wb_platform.os_id() != "linux":
         return None
     if not shell.command_exists("rpmbuild"):
@@ -115,11 +137,13 @@ def package_rpm(outbase: str, release_dir: Path, component_prefix: str, componen
         (rpmroot / sub).mkdir(parents=True, exist_ok=True)
     spec = rpmroot / "SPECS" / "package.spec"
     req_line = f"Requires: {requires}\n" if requires else ""
+    pkg_name = package_name or Path(component_prefix).name
+    owner_group = owner_group or owner_user
     spec.write_text(
-        f"""Name: {Path(component_prefix).name}
+        f"""Name: {pkg_name}
 Version: {rpm_version}
 Release: 1
-Summary: {Path(component_prefix).name} packaged for Wazuh deployments
+Summary: {pkg_name} packaged for Wazuh deployments
 License: GPLv2
 BuildArch: {rpm_arch}
 {req_line}AutoReqProv: no
@@ -130,6 +154,19 @@ AutoProv: no
 
 %description
 Packaged component for Wazuh deployments.
+
+%pre
+getent group {owner_group} >/dev/null 2>&1 || groupadd -r {owner_group} >/dev/null 2>&1 || true
+getent passwd {owner_user} >/dev/null 2>&1 || useradd -r -g {owner_group} -d {component_prefix} -s /sbin/nologin {owner_user} >/dev/null 2>&1 || true
+
+%post
+chown -R {owner_user}:{owner_group} {component_prefix} >/dev/null 2>&1 || true
+%if 0%{{?systemd}} && "{systemd_unit or ''}" != ""
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable --now {systemd_unit} >/dev/null 2>&1 || true
+fi
+%endif
 
 %install
 mkdir -p %{{buildroot}}

@@ -9,15 +9,16 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 COPY builders/common/dependencies.py /tmp/dependencies.py
 COPY builders/suricata/config.yaml /tmp/config-suricata.yaml
 COPY builders/yara/config.yaml /tmp/config-yara.yaml
+COPY builders/wazuh-agent/config.yaml /tmp/config-wazuh-agent.yaml
 
 RUN apt-get update \
     && ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime \
     && apt-get install -y --no-install-recommends python3 ca-certificates curl sudo git \
-    && python3 /tmp/dependencies.py --section apt /tmp/config-suricata.yaml /tmp/config-yara.yaml >/tmp/apt.txt \
+    && python3 /tmp/dependencies.py --section apt /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/apt.txt \
     && if [ -s /tmp/apt.txt ]; then \
            xargs -a /tmp/apt.txt -r apt-get install -y --no-install-recommends; \
        fi \
-    && python3 /tmp/dependencies.py --section bash /tmp/config-suricata.yaml /tmp/config-yara.yaml >/tmp/bash.txt \
+    && python3 /tmp/dependencies.py --section bash /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/bash.txt \
     && if [ -s /tmp/bash.txt ]; then \
            while read -r cmd; do \
                [ -z "$cmd" ] && continue; \

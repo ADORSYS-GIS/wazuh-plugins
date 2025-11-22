@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -78,6 +79,51 @@ def require_libraries(lib_names: list[str]) -> None:
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
+
+
+def _bool_env(name: str) -> bool:
+    val = os.environ.get(name, "")
+    return val.lower() in {"1", "true", "yes", "y"}
+
+
+def load_rules_metadata(builder_root: Path) -> dict:
+    metadata_path = builder_root / "rules" / "source.json"
+    if not metadata_path.exists():
+        raise SystemExit(f"Rule metadata not found: {metadata_path}")
+    try:
+        return json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Unable to parse rule metadata {metadata_path}: {exc}") from exc
+
+
+def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
+    if os.environ.get("RULE_BUNDLE"):
+        bundle = Path(os.environ["RULE_BUNDLE"]).expanduser().resolve()
+        if not bundle.exists():
+            raise SystemExit(f"RULE_BUNDLE path does not exist: {bundle}")
+        return bundle, {"source": "custom", "tag": "manual", "flavor": "custom"}
+
+    metadata = load_rules_metadata(builder_root)
+    flavor = os.environ.get("RULES_FLAVOR", "full")
+    cache_root = Path(os.environ.get("RULES_CACHE", builder_root / "rules-cache")).resolve()
+    expected = cache_root / metadata.get("tag", "unknown") / flavor
+
+    if expected.exists():
+        return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
+
+    if _bool_env("ALLOW_RULE_DOWNLOAD"):
+        fetcher = builder_root / "scripts" / "fetch_yara_rules.py"
+        if not fetcher.exists():
+            raise SystemExit(f"Fetcher script not found: {fetcher}")
+        shell.run(["python3", str(fetcher), "--dest", str(cache_root), "--flavor", flavor])
+        if expected.exists():
+            return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
+
+    raise SystemExit(
+        "Rule bundle not found. Run "
+        f"'python builders/yara/scripts/fetch_yara_rules.py --flavor {flavor}' "
+        f"or set RULE_BUNDLE to an existing path."
+    )
 
 
 def prepare_dest(release_root: Path, component_root: Path, dest: Path) -> None:
@@ -199,8 +245,21 @@ exec "${{script_dir}}/{real.name}" "$@"
 
 
 def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_dir: Path) -> None:
-    if rule_bundle.exists():
-        shutil.copytree(rule_bundle, component_root / "rules", dirs_exist_ok=True)
+    rules_dest = component_root / "rules"
+    rules_dest.mkdir(parents=True, exist_ok=True)
+    if not rule_bundle.exists():
+        raise SystemExit(f"Rule bundle path does not exist: {rule_bundle}")
+    if rule_bundle.is_file():
+        shutil.copy2(rule_bundle, rules_dest / rule_bundle.name)
+    elif rule_bundle.is_dir():
+        yar_files = list(rule_bundle.rglob("*.yar"))
+        if yar_files:
+            for file in yar_files:
+                shutil.copy2(file, rules_dest / file.name)
+        else:
+            shutil.copytree(rule_bundle, rules_dest, dirs_exist_ok=True)
+    else:
+        raise SystemExit(f"Unsupported rule bundle type: {rule_bundle}")
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
     for script_name in ["scan.py", "scan_fixtures.py"]:
@@ -209,7 +268,9 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
         script.chmod(0o755)
 
 
-def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, yara_version: str) -> None:
+def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, yara_version: str,
+                   rules_info: dict | None = None) -> None:
+    rules_info = rules_info or {}
     (component_root / "BUILDINFO.txt").write_text(
         "\n".join(
             [
@@ -218,6 +279,9 @@ def write_metadata(component_root: Path, triplet: str, release_name: str, versio
                 f"TRIPLET={triplet}",
                 f"YARA_VERSION={yara_version}",
                 f"RELEASE_NAME={release_name}",
+                f"RULES_SOURCE={rules_info.get('source', '')}",
+                f"RULES_TAG={rules_info.get('tag', '')}",
+                f"RULES_FLAVOR={rules_info.get('flavor', '')}",
                 "",
             ]
         )
@@ -228,7 +292,8 @@ def write_metadata(component_root: Path, triplet: str, release_name: str, versio
     )
 
 
-def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: str, rule_bundle: Path) -> None:
+def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: str, rule_bundle: Path,
+               rules_info: dict) -> None:
     platform_os = wb_platform.os_id()
     platform_arch = wb_platform.arch_id()
     release_name = f"yara-{version}-{platform_os}-{platform_arch}"
@@ -251,7 +316,7 @@ def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: 
         rpath_flag = "-Wl,-rpath,@loader_path/../lib -Wl,-install_name,@rpath/libyara.dylib" if wb_platform.os_id() == "macos" else "-Wl,-rpath,$ORIGIN/../lib"
         env["LDFLAGS"] = f'{env.get("LDFLAGS", "")} {rpath_flag}'
 
-        configure_args = ["--prefix", component_prefix, "--with-crypto", "--enable-magic"]
+        configure_args = ["--prefix", component_prefix, "--with-crypto", "--enable-magic", "--enable-dotnet", "--enable-cuckoo"]
         shell.run(["./bootstrap.sh"], cwd=src_dir, env=env)
         shell.run(["./configure", *configure_args], cwd=src_dir, env=env)
         shell.run(["make", "-j", jobs], cwd=src_dir, env=env)
@@ -261,9 +326,13 @@ def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: 
     bundle_runtime_libs(component_root)
     wrap_linux_binaries(component_root)
     install_rules_and_scripts(rule_bundle, component_root, Path(__file__).parent)
-    write_metadata(component_root, triplet, release_name, version, yara_version)
+    write_metadata(component_root, triplet, release_name, version, yara_version, rules_info)
     fix_permissions(component_root)
     package_release(cfg, dest, component_root, release_root, release_name, triplet, version, yara_version)
+
+
+def _should_be_executable(path: Path) -> bool:
+    return path.parent.name == "bin" or path.suffix in {".sh", ".py"} or os.access(path, os.X_OK)
 
 
 def fix_permissions(component_root: Path) -> None:
@@ -272,7 +341,7 @@ def fix_permissions(component_root: Path) -> None:
             if path.is_dir():
                 path.chmod(0o755)
             else:
-                path.chmod(0o755)
+                path.chmod(0o755 if _should_be_executable(path) else 0o644)
         except Exception:
             continue
 
@@ -330,13 +399,13 @@ def main() -> None:
     cfg = wb_config.BuilderConfig(config_path)
     dest = Path(os.environ.get("ARTIFACT_DEST", builder_root / "dist" / triplet)).resolve()
     version = os.environ.get("PIPELINE_VERSION", "dev")
-    rule_bundle = Path(os.environ.get("RULE_BUNDLE", builder_root / "rules")).resolve()
+    rule_bundle, rules_info = resolve_rule_bundle(builder_root)
 
     ensure_dependencies(cfg)
     require_tools(["curl", "tar", "make", "gcc", "autoconf", "automake", "pkg-config", "python3", "flex", "bison"])
     require_libraries(["openssl", "libpcre2-8", "libmagic", "jansson", "libprotobuf-c"])
 
-    build_yara(cfg, dest, triplet, version, rule_bundle)
+    build_yara(cfg, dest, triplet, version, rule_bundle, rules_info)
 
 
 if __name__ == "__main__":
