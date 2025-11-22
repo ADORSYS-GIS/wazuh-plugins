@@ -111,6 +111,10 @@ def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
     if expected.exists():
         return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
 
+    local_rules = builder_root / "rules"
+    if local_rules.exists() and any(local_rules.rglob("*.yar")):
+        return local_rules, {"source": "local", "tag": "local", "flavor": "local"}
+
     if _bool_env("ALLOW_RULE_DOWNLOAD"):
         fetcher = builder_root / "scripts" / "fetch_yara_rules.py"
         if not fetcher.exists():
@@ -122,7 +126,7 @@ def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
     raise SystemExit(
         "Rule bundle not found. Run "
         f"'python builders/yara/scripts/fetch_yara_rules.py --flavor {flavor}' "
-        f"or set RULE_BUNDLE to an existing path."
+        f"(or set ALLOW_RULE_DOWNLOAD=1 to auto-fetch) or set RULE_BUNDLE to an existing path."
     )
 
 
