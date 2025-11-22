@@ -113,7 +113,7 @@ fi
 exit 0
 """
         )
-        postinst.chmod(0o770)
+        postinst.chmod(0o775)
         deb_out = dest / f"{outbase}.deb"
         shell.run(["dpkg-deb", "--build", str(staging), str(deb_out)], check=True)
         return deb_out
