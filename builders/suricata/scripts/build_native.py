@@ -46,7 +46,7 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
     if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
         deps.install_brew(cfg.dependency_section("brew"))
         configure_macos_env()
-    
+
     deps.ensure_pkg_config_path()
     deps.ensure_cbindgen()
 
@@ -257,7 +257,7 @@ Type=simple
 User=wazuh
 Group=wazuh
 WorkingDirectory={component_prefix}
-ExecStart={component_prefix}/bin/suricata -c {component_prefix}/etc/suricata.yaml --pidfile {component_prefix}/var/run/suricata.pid
+ExecStart={component_prefix}/bin/suricata -c {component_prefix}/etc/suricata/suricata.yaml --pidfile {component_prefix}/var/run/suricata.pid
 PIDFile={component_prefix}/var/run/suricata.pid
 Restart=on-failure
 LimitNOFILE=65535
@@ -281,7 +281,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
         shutil.copytree(rule_bundle, component_root / "custom-rules", dirs_exist_ok=True)
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
-    for script_name in ["entrypoint.py", "run_regression.py"]:
+    for script_name in []:  # TODO @sse
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
     for script in scripts_dest.rglob("*.py"):
         script.chmod(0o755)
@@ -371,10 +371,12 @@ def _should_be_executable(path: Path) -> bool:
 def fix_permissions(component_root: Path) -> None:
     for path in component_root.rglob("*"):
         try:
-            if path.is_dir():
-                path.chmod(0o755)
-            else:
-                path.chmod(0o755 if _should_be_executable(path) else 0o644)
+            path.chmod(0o755)
+            # TODO @sse
+            # if path.is_dir():
+            #     path.chmod(0o755)
+            # else:
+            #     path.chmod(0o755 if _should_be_executable(path) else 0o644)
         except Exception:
             continue
 

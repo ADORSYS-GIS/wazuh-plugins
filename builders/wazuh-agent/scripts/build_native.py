@@ -113,10 +113,12 @@ def _should_be_executable(path: Path) -> bool:
 def fix_permissions(component_root: Path) -> None:
     for path in component_root.rglob("*"):
         try:
-            if path.is_dir():
-                path.chmod(0o755)
-            else:
-                path.chmod(0o755 if _should_be_executable(path) else 0o644)
+            path.chmod(0o755)
+            # TODO @sse
+            # if path.is_dir():
+            #     path.chmod(0o755)
+            # else:
+            #     path.chmod(0o755 if _should_be_executable(path) else 0o644)
         except Exception:
             continue
 

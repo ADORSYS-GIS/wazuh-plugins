@@ -273,7 +273,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
         raise SystemExit(f"Unsupported rule bundle type: {rule_bundle}")
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
-    for script_name in ["scan.py", "scan_fixtures.py"]:
+    for script_name in []: # TODO @sse
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
     for script in scripts_dest.rglob("*.py"):
         script.chmod(0o755)
@@ -356,10 +356,12 @@ def _should_be_executable(path: Path) -> bool:
 def fix_permissions(component_root: Path) -> None:
     for path in component_root.rglob("*"):
         try:
-            if path.is_dir():
-                path.chmod(0o755)
-            else:
-                path.chmod(0o755 if _should_be_executable(path) else 0o644)
+            path.chmod(0o755)
+            # TODO @sse
+            # if path.is_dir():
+            #     path.chmod(0o755)
+            # else:
+            #     path.chmod(0o755 if _should_be_executable(path) else 0o644)
         except Exception:
             continue
 
