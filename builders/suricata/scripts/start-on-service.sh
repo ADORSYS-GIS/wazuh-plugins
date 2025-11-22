@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -ex
+
 IFS=$'\n'
 IFACES=($(ls /sys/class/net | grep -i en))
 

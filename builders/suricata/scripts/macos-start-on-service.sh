@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -ex
+
 IFACES=$(ifconfig -l | tr ' ' '\n' | grep -i en)
 
 ARGS=""
