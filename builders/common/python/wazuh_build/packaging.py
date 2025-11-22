@@ -1,9 +1,11 @@
 import json
 import os
+import shlex
+import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from . import platform as wb_platform
 from . import shell, utils
@@ -36,6 +38,23 @@ def checksum_file(path: Path) -> str:
     digest = utils.sha256_file(path)
     print(f"{digest}  {path.name}")
     return digest
+
+
+def _stringify_command(command: shell.Command) -> str:
+    if isinstance(command, str):
+        return command
+    return " ".join(shlex.quote(str(part)) for part in command)
+
+
+def _log_subprocess_failure(name: str, exc: subprocess.CalledProcessError) -> None:
+    command = _stringify_command(exc.cmd)
+    print(f"[error] {name} failed (exit {exc.returncode}): {command}")
+    if exc.stdout:
+        print(f"[{name}] stdout:")
+        print(exc.stdout)
+    if exc.stderr:
+        print(f"[{name}] stderr:")
+        print(exc.stderr)
 
 
 def prune_payload_directory(target_dir: Path) -> None:
@@ -109,7 +128,11 @@ exit 0
         )
         postinst.chmod(0o775)
         deb_out = dest / f"{outbase}.deb"
-        shell.run(["dpkg-deb", "--build", str(staging), str(deb_out)], check=True)
+        try:
+            shell.run(["dpkg-deb", "--build", str(staging), str(deb_out)], capture=True)
+        except subprocess.CalledProcessError as exc:
+            _log_subprocess_failure("dpkg-deb", exc)
+            raise
         return deb_out
     finally:
         import shutil
@@ -164,6 +187,11 @@ cp -a {release_dir}/. %{{buildroot}}
 {component_prefix}
 """
     )
+    def cleanup_staging() -> None:
+        import shutil
+
+        shutil.rmtree(staging, ignore_errors=True)
+
     try:
         shell.run(
             [
@@ -179,24 +207,27 @@ cp -a {release_dir}/. %{{buildroot}}
                 "--buildroot",
                 f"{rpmroot}/BUILDROOT",
             ],
-            check=True,
+            capture=True,
         )
-    except Exception:
-        import shutil
-
-        shutil.rmtree(staging, ignore_errors=True)
+    except subprocess.CalledProcessError as exc:
+        _log_subprocess_failure("rpmbuild", exc)
+        cleanup_staging()
         return None
-    
+    except Exception as exc:
+        print(f"[error] rpmbuild invocation failed: {exc}")
+        cleanup_staging()
+        return None
+
     rpm_path = next(rpmroot.rglob("*.rpm"), None)
     if not rpm_path:
+        print("[error] rpmbuild finished without producing an RPM artifact")
+        cleanup_staging()
         return None
-    
+
     dest_path = dest / f"{outbase}.rpm"
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     shell.run(["cp", str(rpm_path), str(dest_path)])
-    import shutil
-
-    shutil.rmtree(staging, ignore_errors=True)
+    cleanup_staging()
     return dest_path
 
 
