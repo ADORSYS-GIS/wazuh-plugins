@@ -182,7 +182,7 @@ def bundle_runtime_libs(component_root: Path) -> None:
     if multiarch:
         search_paths.append(Path("/usr/lib") / multiarch)
     search_paths.extend([Path("/usr/lib"), Path("/usr/lib64")])
-    libs = ["libnet.so.1", "libjansson.so.4", "libpcap.so.1", "libpcap.so.0.8"]
+    libs = ["libnet.so.1", "libjansson.so.4", "libpcap.so.1", "libpcap.so.0.8", "libmaxminddb.so.0"]
     copied = False
     for lib in libs:
         for base in search_paths:
