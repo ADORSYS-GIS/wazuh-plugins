@@ -349,7 +349,8 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
             "--localstatedir",
             f"{component_prefix}/var",
             "--disable-gccmarch-native",
-            "--enable-geoip"
+            # "--enable-geoip",
+            # "--enable-dpdk",
         ]
         if (src_dir / "autogen.sh").exists():
             shell.run(["./autogen.sh"], cwd=src_dir, env=env)
