@@ -4,11 +4,9 @@ set -ex
 
 IFACES=$(ifconfig -l | tr ' ' '\n' | grep -i en)
 
-ARGS=""
-for i in $IFACES; do
-    ARGS="$ARGS -i $i"
+args=()
+for i in "${IFACES[@]}"; do
+    args+=( -i "$i" )
 done
 
-exec /opt/wazuh/suricata/bin/suricata \
-    $ARGS \
-    "$@"
+exec /opt/wazuh/suricata/bin/suricata "${args[@]}" "$@"

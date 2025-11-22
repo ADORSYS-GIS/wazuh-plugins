@@ -2,14 +2,11 @@
 
 set -ex
 
-IFS=$'\n'
 IFACES=($(ls /sys/class/net | grep -i en))
 
-ARGS=""
+args=()
 for i in "${IFACES[@]}"; do
-    ARGS="$ARGS -i $i"
+    args+=( -i "$i" )
 done
 
-exec /opt/wazuh/suricata/bin/suricata \
-    $ARGS \
-    "$@"
+exec /opt/wazuh/suricata/bin/suricata "${args[@]}" "$@"

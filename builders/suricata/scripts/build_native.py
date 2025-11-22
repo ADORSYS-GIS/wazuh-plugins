@@ -261,15 +261,23 @@ PermissionsStartOnly=true
 ExecStart={component_prefix}/scripts/start-on-service.sh --pidfile {component_prefix}/var/run/suricata.pid
 PIDFile={component_prefix}/var/run/suricata.pid
 Restart=on-failure
+RestartSec=5
 LimitNOFILE=409600
 LimitNPROC=409600
 ExecReload=/bin/kill -USR2 $MAINPID
+
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_IPC_LOCK CAP_SYS_NICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_IPC_LOCK CAP_SYS_NICE
+NoNewPrivileges=no
 
 ### Security Settings ###
 MemoryDenyWriteExecute=true
 LockPersonality=true
 ProtectControlGroups=true
 ProtectKernelModules=true
+ProtectHome=true
+ProtectSystem=full
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
@@ -284,7 +292,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
 
-    for script_name in ["macos-start-on-service.sh", "start-on-service.sh"]:
+    for script_name in ["macos-start-on-service.sh", "start-on-service.sh", "postinstall-suricata-wazuh.sh"]:
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
 
     for script in scripts_dest.rglob("*.py"):
@@ -419,11 +427,9 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
 
     packaging.make_tarball(artifact_root, tarball)
 
-    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
-                                    systemd_unit="suricata-wazuh.service")
+    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir)
     rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
-                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng",
-                                    systemd_unit="suricata-wazuh.service")
+                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng")
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 
     with checksum_file_path.open("w", encoding="utf-8") as fh:
