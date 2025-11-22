@@ -361,7 +361,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
         
         if wb_platform.os_id() == "linux":
             configure_args.append("--enable-geoip")
-            configure_args.append("--enable-dpdk")
+            # configure_args.append("--enable-dpdk")
             
         if (src_dir / "autogen.sh").exists():
             shell.run(["./autogen.sh"], cwd=src_dir, env=env)

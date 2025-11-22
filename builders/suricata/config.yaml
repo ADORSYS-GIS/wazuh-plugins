@@ -31,6 +31,7 @@ dependencies:
     - ninja-build
     - rustc
     - cargo
+    - dpdk-dev
     - libmaxminddb-dev
     - libpcre2-dev
     - libpcre3-dev
