@@ -292,7 +292,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
 
-    for script_name in ["macos-start-on-service.sh", "start-on-service.sh", "postinstall-suricata-wazuh.sh"]:
+    for script_name in ["macos-start-on-service.sh", "start-on-service.sh", "postinstall.sh"]:
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
 
     for script in scripts_dest.rglob("*.py"):
@@ -341,7 +341,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
     suricata_tag = suricata_version if suricata_version.startswith("suricata-") else f"suricata-{suricata_version}"
 
     jobs = detect_jobs()
-    with tempfile.TemporaryDirectory(prefix="suricata-build-") as build_dir_raw:
+    with ((tempfile.TemporaryDirectory(prefix="suricata-build-") as build_dir_raw)):
         build_dir = Path(build_dir_raw)
         src_dir = download_and_unpack(suricata_tag, build_dir)
         revision_header = write_revision_header(build_dir)
@@ -357,16 +357,17 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
             "--localstatedir",
             f"{component_prefix}/var",
             "--disable-gccmarch-native",
-            # "--enable-geoip",
-            # "--enable-dpdk",
         ]
+        
+        if wb_platform.os_id() == "linux":
+            configure_args.append("--enable-geoip")
+            configure_args.append("--enable-dpdk")
+            
         if (src_dir / "autogen.sh").exists():
             shell.run(["./autogen.sh"], cwd=src_dir, env=env)
         shell.run(["./configure", *configure_args], cwd=src_dir, env=env)
         shell.run(["make", "-j", jobs], cwd=src_dir, env=env)
-        shell.run(["make", f"DESTDIR={release_root}", "install"], cwd=src_dir, env=env)
-        shell.run(["make", f"DESTDIR={release_root}", "install-conf"], cwd=src_dir, env=env, check=False)
-        shell.run(["make", f"DESTDIR={release_root}", "install-rules"], cwd=src_dir, env=env, check=False)
+        shell.run(["make", f"DESTDIR={release_root}", "install-full"], cwd=src_dir, env=env)
 
     packaging.prune_payload_directory(component_root)
     bundle_runtime_libs(component_root)

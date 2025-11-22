@@ -272,7 +272,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
         raise SystemExit(f"Unsupported rule bundle type: {rule_bundle}")
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
-    for script_name in ["postinstall-suricata-wazuh.sh"]: # TODO @sse
+    for script_name in ["postinstall.sh"]: # TODO @sse
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
     for script in scripts_dest.rglob("*.py"):
         script.chmod(0o770)
