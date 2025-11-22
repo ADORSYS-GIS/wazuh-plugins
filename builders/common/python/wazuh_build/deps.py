@@ -20,8 +20,34 @@ def install_brew(packages: Iterable[str]) -> None:
     pkgs = [p for p in packages if p]
     if not pkgs:
         return
-    shell.run(["brew", "update"])
-    shell.run(["brew", "install", *pkgs])
+
+    def is_installed(pkg: str) -> bool:
+        result = shell.run(["brew", "list", "--versions", pkg], check=False, capture=True)
+        return result.returncode == 0 and bool((result.stdout or "").strip())
+
+    missing = [pkg for pkg in pkgs if not is_installed(pkg)]
+    if not missing:
+        print("[brew] all requested packages are already installed; skipping.")
+        return
+
+    try:
+        shell.run(["brew", "update"])
+    except Exception as exc:
+        print(f"[brew] update failed ({exc}); continuing with installs.")
+    failures = []
+    for pkg in missing:
+        try:
+            shell.run(["brew", "install", pkg])
+        except Exception:
+            # If the install failed but the package ended up present (e.g., from a concurrent run), continue.
+            if is_installed(pkg):
+                continue
+            # One retry via reinstall to recover from partial/dirty installs.
+            retry = shell.run(["brew", "reinstall", pkg], check=False)
+            if retry.returncode != 0 and not is_installed(pkg):
+                failures.append(pkg)
+    if failures:
+        raise SystemExit(f"Failed to install Homebrew packages: {', '.join(failures)}")
 
 
 def run_bash_commands(commands: Iterable[str]) -> None:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -81,6 +82,51 @@ def require_libraries(lib_names: list[str]) -> None:
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
+
+
+def _bool_env(name: str) -> bool:
+    val = os.environ.get(name, "")
+    return val.lower() in {"1", "true", "yes", "y"}
+
+
+def load_rules_metadata(builder_root: Path) -> dict:
+    metadata_path = builder_root / "rules" / "source.json"
+    if not metadata_path.exists():
+        raise SystemExit(f"Rule metadata not found: {metadata_path}")
+    try:
+        return json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Unable to parse rule metadata {metadata_path}: {exc}") from exc
+
+
+def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
+    if os.environ.get("RULE_BUNDLE"):
+        bundle = Path(os.environ["RULE_BUNDLE"]).expanduser().resolve()
+        if not bundle.exists():
+            raise SystemExit(f"RULE_BUNDLE path does not exist: {bundle}")
+        return bundle, {"source": "custom", "tag": "manual", "flavor": "custom"}
+
+    metadata = load_rules_metadata(builder_root)
+    flavor = os.environ.get("RULES_FLAVOR", "open")
+    cache_root = Path(os.environ.get("RULES_CACHE", builder_root / "rules-cache")).resolve()
+    expected = cache_root / metadata.get("tag", "unknown") / flavor
+
+    if expected.exists():
+        return expected, {"source": metadata.get("source"), "tag": metadata.get("tag"), "flavor": flavor}
+
+    if _bool_env("ALLOW_RULE_DOWNLOAD"):
+        fetcher = builder_root / "scripts" / "fetch_suricata_rules.py"
+        if not fetcher.exists():
+            raise SystemExit(f"Fetcher script not found: {fetcher}")
+        shell.run(["python3", str(fetcher), "--dest", str(cache_root), "--flavor", flavor])
+        if expected.exists():
+            return expected, {"source": metadata.get("source"), "tag": metadata.get("tag"), "flavor": flavor}
+
+    raise SystemExit(
+        "Rule bundle not found. Run "
+        f"'python builders/suricata/scripts/fetch_suricata_rules.py --flavor {flavor}' "
+        f"or set RULE_BUNDLE to an existing path."
+    )
 
 
 def prepare_dest(release_root: Path, component_root: Path, dest: Path) -> None:
@@ -191,6 +237,40 @@ exec "${{script_dir}}/{real.name}" "$@"
             target.chmod(0o755)
 
 
+def write_systemd_unit(release_root: Path, component_prefix: str) -> None:
+    if wb_platform.os_id() != "linux":
+        return
+    unit_dir = release_root / "lib" / "systemd" / "system"
+    unit_dir.mkdir(parents=True, exist_ok=True)
+    unit_path = unit_dir / "suricata-wazuh.service"
+    unit_path.write_text(
+        f"""[Unit]
+Description=Wazuh Suricata IDS
+After=network.target
+
+[Service]
+Type=simple
+User=wazuh
+Group=wazuh
+WorkingDirectory={component_prefix}
+ExecStart={component_prefix}/bin/suricata -c {component_prefix}/etc/suricata.yaml --pidfile {component_prefix}/var/run/suricata.pid
+PIDFile={component_prefix}/var/run/suricata.pid
+Restart=on-failure
+LimitNOFILE=65535
+ExecReload=/bin/kill -USR2 \$MAINPID
+
+### Security Settings ###
+MemoryDenyWriteExecute=true
+LockPersonality=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+
+[Install]
+WantedBy=multi-user.target
+"""
+    )
+
+
 def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_dir: Path) -> None:
     if rule_bundle.exists():
         shutil.copytree(rule_bundle, component_root / "rules", dirs_exist_ok=True)
@@ -204,7 +284,8 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
 
 
 def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, suricata_tag: str,
-                   suricata_version: str) -> None:
+                   suricata_version: str, rules_info: dict | None = None) -> None:
+    rules_info = rules_info or {}
     (component_root / "BUILDINFO.txt").write_text(
         "\n".join(
             [
@@ -214,6 +295,9 @@ def write_metadata(component_root: Path, triplet: str, release_name: str, versio
                 f"SURICATA_TAG={suricata_tag}",
                 f"SURICATA_VERSION={suricata_version}",
                 f"RELEASE_NAME={release_name}",
+                f"RULES_SOURCE={rules_info.get('source', '')}",
+                f"RULES_TAG={rules_info.get('tag', '')}",
+                f"RULES_FLAVOR={rules_info.get('flavor', '')}",
                 "",
             ]
         )
@@ -224,7 +308,8 @@ def write_metadata(component_root: Path, triplet: str, release_name: str, versio
     )
 
 
-def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: str, rule_bundle: Path) -> None:
+def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: str, rule_bundle: Path,
+                   rules_info: dict) -> None:
     platform_os = wb_platform.os_id()
     platform_arch = wb_platform.arch_id()
     release_name = f"suricata-{version}-{platform_os}-{platform_arch}"
@@ -232,6 +317,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
     component_prefix = "/opt/wazuh/suricata"
     component_root = release_root / component_prefix.lstrip("/")
     prepare_dest(release_root, component_root, dest)
+    write_systemd_unit(release_root, component_prefix)
 
     suricata_version = os.environ.get("PIPELINE_VERSION", "").strip()
     if not suricata_version:
@@ -268,10 +354,14 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
     bundle_runtime_libs(component_root)
     wrap_linux_binaries(component_root)
     install_rules_and_scripts(rule_bundle, component_root, Path(__file__).parent)
-    write_metadata(component_root, triplet, release_name, version, suricata_tag, suricata_version)
+    write_metadata(component_root, triplet, release_name, version, suricata_tag, suricata_version, rules_info)
     fix_permissions(component_root)
     package_release(cfg, dest, component_root, release_root, release_name, triplet, version, suricata_tag,
                     suricata_version)
+
+
+def _should_be_executable(path: Path) -> bool:
+    return path.parent.name == "bin" or path.suffix in {".sh", ".py"} or os.access(path, os.X_OK)
 
 
 def fix_permissions(component_root: Path) -> None:
@@ -280,7 +370,7 @@ def fix_permissions(component_root: Path) -> None:
             if path.is_dir():
                 path.chmod(0o755)
             else:
-                path.chmod(0o755)
+                path.chmod(0o755 if _should_be_executable(path) else 0o644)
         except Exception:
             continue
 
@@ -319,9 +409,11 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
 
     packaging.make_tarball(artifact_root, tarball)
 
-    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir)
+    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
+                                    systemd_unit="suricata-wazuh.service")
     rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
-                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng")
+                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng",
+                                    systemd_unit="suricata-wazuh.service")
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 
     with checksum_file_path.open("w", encoding="utf-8") as fh:
@@ -340,7 +432,7 @@ def main() -> None:
     cfg = wb_config.BuilderConfig(config_path)
     dest = Path(os.environ.get("ARTIFACT_DEST", builder_root / "dist" / triplet)).resolve()
     version = os.environ.get("PIPELINE_VERSION", "dev")
-    rule_bundle = Path(os.environ.get("RULE_BUNDLE", builder_root / "rules")).resolve()
+    rule_bundle, rules_info = resolve_rule_bundle(builder_root)
 
     ensure_dependencies(cfg)
     require_tools(["curl", "tar", "make", "gcc", "autoconf", "automake", "pkg-config", "python3"])
@@ -349,7 +441,7 @@ def main() -> None:
         libs.append("libcap-ng")
     require_libraries(libs)
 
-    build_suricata(cfg, dest, triplet, version, rule_bundle)
+    build_suricata(cfg, dest, triplet, version, rule_bundle, rules_info)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,24 @@
+{
+  "source": "https://github.com/YARAHQ/yara-forge",
+  "tag": "20251116",
+  "assets": {
+    "core": {
+      "name": "yara-forge-rules-core.zip",
+      "sha256": "96e0b0d7317da1313281bbb3cc8ce128cb002b0d2c73e9cc8b8c8d9f065a66a4",
+      "bundle_path": "packages/core",
+      "url": "https://github.com/YARAHQ/yara-forge/releases/download/20251116/yara-forge-rules-core.zip"
+    },
+    "extended": {
+      "name": "yara-forge-rules-extended.zip",
+      "sha256": "8bd57651f43ff23ef419c258023234ec189177a442aaf56fd2498572b80ec06c",
+      "bundle_path": "packages/extended",
+      "url": "https://github.com/YARAHQ/yara-forge/releases/download/20251116/yara-forge-rules-extended.zip"
+    },
+    "full": {
+      "name": "yara-forge-rules-full.zip",
+      "sha256": "c020fb5dfe98c34dec67329176e03ac75a4397fb220c4ccdc173eefe544113e2",
+      "bundle_path": "packages/full",
+      "url": "https://github.com/YARAHQ/yara-forge/releases/download/20251116/yara-forge-rules-full.zip"
+    }
+  }
+}
