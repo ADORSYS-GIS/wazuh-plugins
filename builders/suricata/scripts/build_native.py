@@ -341,7 +341,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
     suricata_tag = suricata_version if suricata_version.startswith("suricata-") else f"suricata-{suricata_version}"
 
     jobs = detect_jobs()
-    with ((tempfile.TemporaryDirectory(prefix="suricata-build-") as build_dir_raw)):
+    with tempfile.TemporaryDirectory(prefix="suricata-build-") as build_dir_raw:
         build_dir = Path(build_dir_raw)
         src_dir = download_and_unpack(suricata_tag, build_dir)
         revision_header = write_revision_header(build_dir)
