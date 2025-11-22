@@ -27,6 +27,8 @@ Additional env overrides:
   `builders/yara/rules-cache`).
 - `RULES_FLAVOR`: choose `core`, `extended`, or `full` (default: `full`).
 - `RULE_BUNDLE`: bypass the cache/metadata and use a custom path.
+- `ENABLE_YARA_CUCKOO`: enable/disable `--enable-cuckoo` (defaults **on** for Linux, **off** for macOS; set to `0`/`1` to override).
+- `ENABLE_YARA_DOTNET`: enable/disable `--enable-dotnet` (defaults **on** for Linux, **off** for macOS; requires mono toolchain; set to `0`/`1` to override).
 
 ## Building
 

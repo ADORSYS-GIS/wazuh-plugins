@@ -86,6 +86,13 @@ def _bool_env(name: str) -> bool:
     return val.lower() in {"1", "true", "yes", "y"}
 
 
+def _feature_enabled(env_name: str, default: bool) -> bool:
+    val = os.environ.get(env_name)
+    if val is None or val == "":
+        return default
+    return _bool_env(env_name)
+
+
 def load_rules_metadata(builder_root: Path) -> dict:
     metadata_path = builder_root / "rules" / "source.json"
     if not metadata_path.exists():
@@ -176,7 +183,7 @@ def bundle_runtime_libs(component_root: Path) -> None:
     if multiarch:
         search_paths.append(Path("/usr/lib") / multiarch)
     search_paths.extend([Path("/usr/lib"), Path("/usr/lib64")])
-    libs = ["libcrypto.so.1.1", "libssl.so.1.1"]
+    libs = ["libcrypto.so.1.1", "libssl.so.1.1", "libjansson.so.4"]
     copied = False
     for lib in libs:
         for base in search_paths:
@@ -320,7 +327,14 @@ def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: 
         rpath_flag = "-Wl,-rpath,@loader_path/../lib -Wl,-install_name,@rpath/libyara.dylib" if wb_platform.os_id() == "macos" else "-Wl,-rpath,$ORIGIN/../lib"
         env["LDFLAGS"] = f'{env.get("LDFLAGS", "")} {rpath_flag}'
 
-        configure_args = ["--prefix", component_prefix, "--with-crypto", "--enable-magic", "--enable-dotnet", "--enable-cuckoo"]
+        default_enable = wb_platform.os_id() == "linux"
+        enable_cuckoo = _feature_enabled("ENABLE_YARA_CUCKOO", default_enable)
+        enable_dotnet = _feature_enabled("ENABLE_YARA_DOTNET", default_enable)
+        configure_args = ["--prefix", component_prefix, "--with-crypto", "--enable-magic"]
+        if enable_cuckoo:
+            configure_args.append("--enable-cuckoo")
+        if enable_dotnet:
+            configure_args.append("--enable-dotnet")
         shell.run(["./bootstrap.sh"], cwd=src_dir, env=env)
         shell.run(["./configure", *configure_args], cwd=src_dir, env=env)
         shell.run(["make", "-j", jobs], cwd=src_dir, env=env)
