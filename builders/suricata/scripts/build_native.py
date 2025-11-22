@@ -429,8 +429,15 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
     packaging.make_tarball(artifact_root, tarball)
 
     deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir)
-    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir,
-                                    requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng")
+    rpm_pkg = packaging.package_rpm(
+        outbase,
+        release_root,
+        "/opt/wazuh/suricata",
+        builder_version,
+        dist_dir,
+        requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng",
+        extra_files=["/lib/systemd/system/suricata-wazuh.service"],
+    )
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 
     with checksum_file_path.open("w", encoding="utf-8") as fh:

@@ -5,7 +5,7 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from . import platform as wb_platform
 from . import shell, utils
@@ -140,7 +140,16 @@ exit 0
         shutil.rmtree(staging, ignore_errors=True)
 
 
-def package_rpm(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path, requires: Optional[str] = None, package_name: Optional[str] = None) -> Optional[Path]:
+def package_rpm(
+    outbase: str,
+    release_dir: Path,
+    component_prefix: str,
+    component_version: str,
+    dest: Path,
+    requires: Optional[str] = None,
+    package_name: Optional[str] = None,
+    extra_files: Optional[List[str]] = None,
+) -> Optional[Path]:
     if wb_platform.os_id() != "linux":
         return None
     
@@ -160,6 +169,9 @@ def package_rpm(outbase: str, release_dir: Path, component_prefix: str, componen
     spec = rpmroot / "SPECS" / "package.spec"
     req_line = f"Requires: {requires}\n" if requires else ""
     pkg_name = package_name or Path(component_prefix).name
+    extra_files_lines = ""
+    if extra_files:
+        extra_files_lines = "".join(f"{path}\n" for path in extra_files)
     spec.write_text(
         f"""Name: {pkg_name}
 Version: {rpm_version}
@@ -185,6 +197,7 @@ cp -a {release_dir}/. %{{buildroot}}
 
 %files
 {component_prefix}
+{extra_files_lines}
 """
     )
     def cleanup_staging() -> None:
