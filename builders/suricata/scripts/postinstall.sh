@@ -1,26 +1,55 @@
 #!/bin/sh
-set -ex
+set -eux
 
-COMP_PREFIX="$1"
+COMP_PREFIX=${1:-/opt/wazuh/suricata}
 SERVICE_NAME="suricata-wazuh.service"
 
-# 1) Ensure group/user wazuh exist
-if command -v getent >/dev/null 2>&1; then
-  getent group wazuh >/dev/null 2>&1 || \
-    addgroup --system wazuh 2>/dev/null || groupadd -r wazuh || true
-
-  getent passwd wazuh >/dev/null 2>&1 || \
-    adduser --system --ingroup wazuh --home "$COMP_PREFIX" --shell /usr/sbin/nologin wazuh 2>/dev/null || \
-    useradd -r -g wazuh -d "$COMP_PREFIX" -s /usr/sbin/nologin wazuh || true
+# Find a suitable nologin shell
+if command -v nologin >/dev/null 2>&1; then
+  NOLOGIN_SHELL="$(command -v nologin)"
+elif [ -x /usr/sbin/nologin ]; then
+  NOLOGIN_SHELL=/usr/sbin/nologin
+elif [ -x /sbin/nologin ]; then
+  NOLOGIN_SHELL=/sbin/nologin
 else
-  # very minimal fallback
-  groupadd -r wazuh 2>/dev/null || true
-  useradd -r -g wazuh -d "$COMP_PREFIX" -s /usr/sbin/nologin wazuh 2>/dev/null || true
+  # Last resort
+  NOLOGIN_SHELL=/bin/false
 fi
 
+# 1) Ensure group wazuh exists
+if ! getent group wazuh >/dev/null 2>&1; then
+  if command -v addgroup >/dev/null 2>&1; then
+    # Debian/Ubuntu style
+    if ! addgroup --system wazuh 2>/dev/null; then
+      groupadd -r wazuh 2>/dev/null || :
+    fi
+  else
+    # RHEL/CentOS style
+    groupadd -r wazuh 2>/dev/null || :
+  fi
+fi
+
+# 2) Ensure user wazuh exists
+if ! getent passwd wazuh >/dev/null 2>&1; then
+  if command -v adduser >/dev/null 2>&1; then
+    # Debian/Ubuntu style
+    if ! adduser --system \
+        --ingroup wazuh \
+        --home "$COMP_PREFIX" \
+        --shell "$NOLOGIN_SHELL" \
+        wazuh 2>/dev/null; then
+      useradd -r -g wazuh -d "$COMP_PREFIX" -s "$NOLOGIN_SHELL" wazuh 2>/dev/null || :
+    fi
+  else
+    # RHEL/CentOS style
+    useradd -r -g wazuh -d "$COMP_PREFIX" -s "$NOLOGIN_SHELL" wazuh 2>/dev/null || :
+  fi
+fi
+
+# 3) Enable and start systemd service if available
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-  systemctl daemon-reload || true
-  systemctl enable --now "$SERVICE_NAME" || true
+  systemctl daemon-reload || :
+  systemctl enable --now "$SERVICE_NAME" || :
 fi
 
 exit 0
