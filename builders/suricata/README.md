@@ -16,8 +16,6 @@ This downloads `emerging-all.rules`, verifies the SHA256, and caches it under
 Environment overrides:
 
 - `RULE_BUNDLE`: Use a custom rules directory instead of the cached bundle.
-- `ALLOW_RULE_DOWNLOAD=1`: Let the builder auto-fetch using the pinned metadata
-  when the cache is missing.
 - `RULES_CACHE`: Override the cache directory (default:
   `builders/suricata/rules-cache`).
 - `RULES_FLAVOR`: Defaults to `open` (only option today).

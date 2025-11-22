@@ -16,8 +16,6 @@ predictable.
   ```
 - The builder looks for cached rules under
   `rules-cache/<tag>/<flavor>/`. If missing, either:
-  - Set `ALLOW_RULE_DOWNLOAD=1` to let the build auto-fetch using the pinned
-    metadata, or
   - Point `RULE_BUNDLE=/path/to/your/rules` to use an existing directory or
     `.yar` file.
 

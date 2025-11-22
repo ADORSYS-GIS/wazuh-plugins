@@ -122,18 +122,17 @@ def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
     if local_rules.exists() and any(local_rules.rglob("*.yar")):
         return local_rules, {"source": "local", "tag": "local", "flavor": "local"}
 
-    if _bool_env("ALLOW_RULE_DOWNLOAD"):
-        fetcher = builder_root / "scripts" / "fetch_yara_rules.py"
-        if not fetcher.exists():
-            raise SystemExit(f"Fetcher script not found: {fetcher}")
-        shell.run(["python3", str(fetcher), "--dest", str(cache_root), "--flavor", flavor])
-        if expected.exists():
-            return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
+    fetcher = builder_root / "scripts" / "fetch_yara_rules.py"
+    if not fetcher.exists():
+        raise SystemExit(f"Fetcher script not found: {fetcher}")
+    shell.run(["python3", str(fetcher), "--dest", str(cache_root), "--flavor", flavor])
+    if expected.exists():
+        return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
 
     raise SystemExit(
         "Rule bundle not found. Run "
         f"'python builders/yara/scripts/fetch_yara_rules.py --flavor {flavor}' "
-        f"(or set ALLOW_RULE_DOWNLOAD=1 to auto-fetch) or set RULE_BUNDLE to an existing path."
+        f"or set RULE_BUNDLE to an existing path."
     )
 
 
@@ -252,7 +251,7 @@ export LD_LIBRARY_PATH="${{script_dir}}/../lib:${{LD_LIBRARY_PATH:-}}"
 exec "${{script_dir}}/{real.name}" "$@"
 """
             target.write_text(wrapper)
-            target.chmod(0o755)
+            target.chmod(0o770)
 
 
 def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_dir: Path) -> None:
@@ -276,7 +275,7 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
     for script_name in []: # TODO @sse
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
     for script in scripts_dest.rglob("*.py"):
-        script.chmod(0o755)
+        script.chmod(0o770)
 
 
 def write_metadata(component_root: Path, triplet: str, release_name: str, version: str, yara_version: str,
@@ -356,12 +355,10 @@ def _should_be_executable(path: Path) -> bool:
 def fix_permissions(component_root: Path) -> None:
     for path in component_root.rglob("*"):
         try:
-            path.chmod(0o755)
-            # TODO @sse
-            # if path.is_dir():
-            #     path.chmod(0o755)
-            # else:
-            #     path.chmod(0o755 if _should_be_executable(path) else 0o644)
+            if path.is_dir():
+                path.chmod(0o770)
+            else:
+                path.chmod(0o775 if _should_be_executable(path) else 0o770)
         except Exception:
             continue
 
