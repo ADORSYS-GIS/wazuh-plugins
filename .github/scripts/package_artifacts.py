@@ -21,7 +21,11 @@ def package_artifacts(builder: str, triplet: str) -> None:
 
     scripts_dir = repo_root / "builders" / builder / "scripts"
     if scripts_dir.exists():
-        shutil.copytree(scripts_dir, stage_dir / "scripts", dirs_exist_ok=True)
+        for name in ("install.sh", "uninstall.sh"):
+            src = scripts_dir / name
+            if src.exists():
+                dest = stage_dir / f"{builder}-{version}-{triplet}-{name}"
+                shutil.copy2(src, dest)
 
     for meta_name in ("version.txt", "release.txt", "package_revision.txt"):
         meta_path = repo_root / "builders" / builder / meta_name
@@ -40,7 +44,7 @@ def package_artifacts(builder: str, triplet: str) -> None:
     if copied == 0:
         raise SystemExit(f"No packaged artifacts found in {artifact_dir}")
 
-    manifest = sorted(stage_dir.glob("*"))
+    manifest = sorted(p for p in stage_dir.glob("*") if p.is_file())
     output = [
         f"version={version}",
         f"artifact_name={stage_name}",
