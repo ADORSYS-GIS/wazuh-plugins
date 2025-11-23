@@ -4,7 +4,7 @@ pipeline:
   version_file: version.txt
   release_file: release.txt
   builder: native
-  native_build_script: scripts/build_native.py
+  native_build_script: build/main.py
   artifacts:
     dest: dist
 build:
@@ -47,4 +47,4 @@ ci:
     - echo "Lint YARA rules"
   tests:
     - name: sample-scan
-      command: python ./scripts/scan_fixtures.py
+      command: python ./tests/scan_fixtures.py

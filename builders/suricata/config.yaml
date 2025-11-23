@@ -4,7 +4,7 @@ pipeline:
   version_file: version.txt
   release_file: release.txt
   builder: native
-  native_build_script: scripts/build_native.py
+  native_build_script: build/main.py
   artifacts:
     dest: dist
 build:
@@ -72,4 +72,4 @@ ci:
     - echo "Validate Suricata configs"
   tests:
     - name: regression
-      command: python ./scripts/run_regression.py
+      command: python ./tests/run_regression.py

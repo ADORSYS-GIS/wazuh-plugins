@@ -6,41 +6,21 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from builders.common.python.wazuh_build import config as wb_config  # noqa: E402
-from builders.common.python.wazuh_build import (  # noqa: E402
-    deps,
-    packaging,
-    platform as wb_platform,
-    sbom,
-    shell,
+from builders.common.python.wazuh_build import config as wb_config, deps, packaging, platform as wb_platform, sbom, shell
+from modules.repackage import (
+    download_linux_deb,
+    download_macos_pkg,
+    extract_linux_package,
+    extract_macos_package,
+    fix_permissions,
+    require_tools,
+    stream_from_version,
 )
-
-
-def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
-    if wb_platform.os_id() == "linux" and shell.command_exists("apt-get"):
-        deps.install_apt(cfg.dependency_section("apt"))
-        deps.run_bash_commands(cfg.dependency_section("bash"))
-    if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
-        deps.install_brew(cfg.dependency_section("brew"))
-
-
-def require_tools(tool_names: List[str]) -> None:
-    missing = [tool for tool in tool_names if not shell.command_exists(tool)]
-    if missing:
-        raise SystemExit(f"Missing required tools: {', '.join(missing)}")
-
-
-def stream_from_version(version: str) -> str:
-    parts = version.split(".")
-    if parts and parts[0].isdigit():
-        return f"{parts[0]}.x"
-    return "4.x"
 
 
 def prepare_dest(release_root: Path, dest: Path) -> None:
@@ -48,43 +28,6 @@ def prepare_dest(release_root: Path, dest: Path) -> None:
         shutil.rmtree(release_root)
     release_root.mkdir(parents=True, exist_ok=True)
     (dest / "artifacts").mkdir(parents=True, exist_ok=True)
-
-
-def download_linux_deb(
-    version: str, revision: str, arch: str, target: Path
-) -> Tuple[Path, str]:
-    stream = stream_from_version(version)
-    filename = f"wazuh-agent_{version}-{revision}_{arch}.deb"
-    url = f"https://packages.wazuh.com/{stream}/apt/pool/main/w/wazuh-agent/{filename}"
-    dest = target / filename
-    shell.run(["curl", "-fsSL", url, "-o", str(dest)])
-    return dest, url
-
-
-def download_macos_pkg(
-    version: str, revision: str, arch: str, target: Path
-) -> Tuple[Path, str]:
-    stream = stream_from_version(version)
-    filename = f"wazuh-agent-{version}-{revision}.{arch}.pkg"
-    url = f"https://packages.wazuh.com/{stream}/macos/{filename}"
-    dest = target / filename
-    shell.run(["curl", "-fsSL", url, "-o", str(dest)])
-    return dest, url
-
-
-def extract_linux_package(deb_path: Path, release_root: Path) -> None:
-    shell.run(["dpkg-deb", "-x", str(deb_path), str(release_root)])
-
-
-def extract_macos_package(pkg_path: Path, release_root: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="wazuh-agent-pkg-") as tmpdir:
-        expanded = Path(tmpdir) / "expanded"
-        shell.run(["pkgutil", "--expand-full", str(pkg_path), str(expanded)])
-        payload_dirs = sorted(expanded.glob("**/Payload"))
-        if not payload_dirs:
-            raise SystemExit("No Payload directory found in macOS pkg.")
-        payload_dir = payload_dirs[0]
-        shutil.copytree(payload_dir, release_root, dirs_exist_ok=True, symlinks=True)
 
 
 def write_metadata(
@@ -115,25 +58,6 @@ def write_metadata(
         f"Upstream agent version {agent_version}-{package_revision} staged under {component_prefix}.\n"
         "Post-install tasks such as enrollment, user creation, and service enablement remain operator controlled.\n"
     )
-
-
-def _should_be_executable(path: Path) -> bool:
-    return (
-        path.parent.name == "bin"
-        or path.suffix in {".sh", ".py"}
-        or os.access(path, os.X_OK)
-    )
-
-
-def fix_permissions(component_root: Path) -> None:
-    for path in component_root.rglob("*"):
-        try:
-            if path.is_dir():
-                path.chmod(0o770)
-            else:
-                path.chmod(0o775 if _should_be_executable(path) else 0o770)
-        except Exception:
-            continue
 
 
 def package_release(
@@ -290,6 +214,14 @@ def build_wazuh_agent(
         package_revision,
         package_source,
     )
+
+
+def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
+    if wb_platform.os_id() == "linux" and shell.command_exists("apt-get"):
+        deps.install_apt(cfg.dependency_section("apt"))
+        deps.run_bash_commands(cfg.dependency_section("bash"))
+    if wb_platform.os_id() == "macos" and shell.command_exists("brew"):
+        deps.install_brew(cfg.dependency_section("brew"))
 
 
 def main() -> None:
