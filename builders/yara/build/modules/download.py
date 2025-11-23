@@ -13,7 +13,7 @@ def resolve_rule_bundle(builder_root: Path) -> Tuple[Path, dict]:
     return rules.resolve_rule_bundle(
         builder_root,
         default_flavor="full",
-        fetcher_script_name="fetch_yara_rules.py",
+        fetcher_script_name="../utils/fetch_rules.py",
         source_name="yara-forge",
     )
 
