@@ -342,6 +342,9 @@ def build_suricata(
         shell.run(["./configure", *configure_args], cwd=src_dir, env=env)
         shell.run(["make", "-j", jobs], cwd=src_dir, env=env)
         shell.run(
+            ["make", f"DESTDIR={release_root}", "install"], cwd=src_dir, env=env
+        )
+        shell.run(
             ["make", f"DESTDIR={release_root}", "install-conf"], cwd=src_dir, env=env
         )
 
