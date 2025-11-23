@@ -21,6 +21,10 @@ jobs:
           - ubuntu-latest-arm
     steps:
       - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Compute lowercase repository
         id: repo
         run: |

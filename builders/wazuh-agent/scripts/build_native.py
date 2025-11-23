@@ -6,8 +6,9 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import List, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -29,7 +30,7 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
         deps.install_brew(cfg.dependency_section("brew"))
 
 
-def require_tools(tool_names: list[str]) -> None:
+def require_tools(tool_names: List[str]) -> None:
     missing = [tool for tool in tool_names if not shell.command_exists(tool)]
     if missing:
         raise SystemExit(f"Missing required tools: {', '.join(missing)}")
@@ -51,7 +52,7 @@ def prepare_dest(release_root: Path, dest: Path) -> None:
 
 def download_linux_deb(
     version: str, revision: str, arch: str, target: Path
-) -> tuple[Path, str]:
+) -> Tuple[Path, str]:
     stream = stream_from_version(version)
     filename = f"wazuh-agent_{version}-{revision}_{arch}.deb"
     url = f"https://packages.wazuh.com/{stream}/apt/pool/main/w/wazuh-agent/{filename}"
@@ -62,7 +63,7 @@ def download_linux_deb(
 
 def download_macos_pkg(
     version: str, revision: str, arch: str, target: Path
-) -> tuple[Path, str]:
+) -> Tuple[Path, str]:
     stream = stream_from_version(version)
     filename = f"wazuh-agent-{version}-{revision}.{arch}.pkg"
     url = f"https://packages.wazuh.com/{stream}/macos/{filename}"

@@ -134,14 +134,14 @@ def ensure_pkg_config_path() -> None:
         os.environ["PKG_CONFIG_PATH"] = ":".join(parts)
 
 
-def require_tools(tool_names: list[str]) -> None:
+def require_tools(tool_names: List[str]) -> None:
     missing = [tool for tool in tool_names if not shell.command_exists(tool)]
     if missing:
         raise SystemExit(f"Missing required tools: {', '.join(missing)}")
 
 
-def require_libraries(lib_names: list[str]) -> None:
-    missing: list[str] = []
+def require_libraries(lib_names: List[str]) -> None:
+    missing: List[str] = []
     for lib in lib_names:
         try:
             shell.run(["pkg-config", "--exists", lib], check=True, capture=True)

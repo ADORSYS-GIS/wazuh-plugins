@@ -8,6 +8,7 @@ import sys
 import tarfile
 import tempfile
 from pathlib import Path
+from typing import Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -60,7 +61,7 @@ def _feature_enabled(env_name: str, default: bool) -> bool:
     return _bool_env(env_name)
 
 
-def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
+def resolve_rule_bundle(builder_root: Path) -> Tuple[Path, dict]:
     return rules.resolve_rule_bundle(
         builder_root,
         default_flavor="full",

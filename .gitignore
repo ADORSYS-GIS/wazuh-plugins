@@ -2,3 +2,4 @@
 venv
 dist
 rules-cache
+__pycache__
