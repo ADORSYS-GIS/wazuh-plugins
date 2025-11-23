@@ -118,13 +118,10 @@ def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
     if expected.exists():
         return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
 
-    local_rules = builder_root / "rules"
-    if local_rules.exists() and any(local_rules.rglob("*.yar")):
-        return local_rules, {"source": "local", "tag": "local", "flavor": "local"}
-
     fetcher = builder_root / "scripts" / "fetch_yara_rules.py"
     if not fetcher.exists():
         raise SystemExit(f"Fetcher script not found: {fetcher}")
+    
     shell.run(["python3", str(fetcher), "--dest", str(cache_root), "--flavor", flavor])
     if expected.exists():
         return expected, {"source": "yara-forge", "tag": metadata.get("tag"), "flavor": flavor}
@@ -395,8 +392,8 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
     )
 
     packaging.make_tarball(artifact_root, tarball)
-    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/yara", builder_version, dist_dir)
-    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/yara", builder_version, dist_dir,
+    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/yara", f"{yara_version}+{builder_version}", dist_dir)
+    rpm_pkg = packaging.package_rpm(outbase, release_root, "/opt/wazuh/yara", f"{yara_version}+{builder_version}", dist_dir,
                                     requires="glibc, file-libs, jansson")
     dmg_pkg = packaging.package_dmg(outbase, release_root, dist_dir)
 

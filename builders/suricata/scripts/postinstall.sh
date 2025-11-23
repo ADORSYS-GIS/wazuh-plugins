@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eux
+set -eu
 
 COMP_PREFIX=${1:-/opt/wazuh/suricata}
 SERVICE_NAME="suricata-wazuh.service"
@@ -53,6 +53,8 @@ chown -R wazuh:wazuh $COMP_PREFIX >/dev/null 2>&1 || true
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   systemctl daemon-reload || :
   systemctl enable --now "$SERVICE_NAME" || :
+  systemctl stop --now "$SERVICE_NAME" || :
+  systemctl start --now "$SERVICE_NAME" || :
 fi
 
 exit 0

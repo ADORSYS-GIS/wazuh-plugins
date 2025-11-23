@@ -370,7 +370,7 @@ def build_suricata(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, versi
             shell.run(["./autogen.sh"], cwd=src_dir, env=env)
         shell.run(["./configure", *configure_args], cwd=src_dir, env=env)
         shell.run(["make", "-j", jobs], cwd=src_dir, env=env)
-        shell.run(["make", f"DESTDIR={release_root}", "install-full"], cwd=src_dir, env=env)
+        shell.run(["make", f"DESTDIR={release_root}", "install-conf"], cwd=src_dir, env=env)
 
     packaging.prune_payload_directory(component_root)
     bundle_runtime_libs(component_root)
@@ -431,12 +431,12 @@ def package_release(cfg: wb_config.BuilderConfig, dest: Path, component_root: Pa
 
     packaging.make_tarball(artifact_root, tarball)
 
-    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", builder_version, dist_dir)
+    deb_pkg = packaging.package_deb(outbase, release_root, "/opt/wazuh/suricata", f"{suricata_version}+{builder_version}", dist_dir)
     rpm_pkg = packaging.package_rpm(
         outbase,
         release_root,
         "/opt/wazuh/suricata",
-        builder_version,
+        f"{suricata_version}+{builder_version}",
         dist_dir,
         requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng",
         extra_files=["/lib/systemd/system/suricata-wazuh.service"],

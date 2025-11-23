@@ -144,7 +144,7 @@ def package_rpm(
     outbase: str,
     release_dir: Path,
     component_prefix: str,
-    component_version: str,
+    rpm_version: str,
     dest: Path,
     requires: Optional[str] = None,
     package_name: Optional[str] = None,
@@ -157,7 +157,6 @@ def package_rpm(
         return None
     
     rpm_arch = {"amd64": "x86_64", "arm64": "aarch64"}.get(wb_platform.arch_id(), "noarch")
-    rpm_version = component_version[1:] if component_version.startswith("v") else component_version
     import tempfile
 
     staging = Path(tempfile.mkdtemp(prefix="rpm-staging-"))

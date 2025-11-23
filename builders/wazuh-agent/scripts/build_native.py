@@ -177,7 +177,7 @@ def package_release(
         outbase,
         release_root,
         component_prefix,
-        builder_version,
+        f"{agent_version}+{builder_version}",
         dist_dir,
         package_name="wazuh-agent",
     )
@@ -185,7 +185,7 @@ def package_release(
         outbase,
         release_root,
         component_prefix,
-        builder_version,
+        f"{agent_version}+{builder_version}",
         dist_dir,
         requires="glibc",
         package_name="wazuh-agent",

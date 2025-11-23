@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -eu
 
 IFACES=$(ifconfig -l | tr ' ' '\n' | grep -i en)
 
@@ -9,4 +9,5 @@ for i in "${IFACES[@]}"; do
     args+=( -i "$i" )
 done
 
+echo /opt/wazuh/suricata/bin/suricata "${args[@]}" "$@"
 exec /opt/wazuh/suricata/bin/suricata "${args[@]}" "$@"
