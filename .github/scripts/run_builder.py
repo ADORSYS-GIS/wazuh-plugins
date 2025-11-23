@@ -47,7 +47,8 @@ def build_native(
     config_dir: Path,
     pipeline: dict,
     artifact_dest: Path,
-    version: str,
+    upstream_version: str,
+    release_version: str,
     artifact_triplet: str | None,
 ) -> None:
     clean_artifact_dest(artifact_dest)
@@ -63,7 +64,8 @@ def build_native(
     env.update(
         {
             "ARTIFACT_DEST": str(artifact_dest),
-            "PIPELINE_VERSION": version,
+            "PIPELINE_VERSION": upstream_version,
+            "RELEASE_VERSION": release_version,
             "PIPELINE_NAME": pipeline.get("name", config_dir.name),
             "PYTHONPATH": f"{repo_root}:{env.get('PYTHONPATH', '')}",
         }
@@ -129,7 +131,8 @@ def main() -> None:
         config_dir,
         pipeline,
         artifact_dest,
-        version,
+        upstream_version,
+        release_version,
         args.artifact_triplet,
     )
 

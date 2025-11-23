@@ -108,6 +108,10 @@ def package_deb(
         return None
     import tempfile
 
+    release_version = os.environ.get("RELEASE_VERSION", "").strip()
+    if release_version != "":
+        component_version = f"{component_version}+{release_version}"
+
     staging = Path(tempfile.mkdtemp(prefix="deb-staging-"))
     try:
         (staging / "DEBIAN").mkdir(parents=True, exist_ok=True)
@@ -182,6 +186,10 @@ def package_rpm(
         wb_platform.arch_id(), "noarch"
     )
     import tempfile
+
+    release_version = os.environ.get("RELEASE_VERSION", "").strip()
+    if release_version != "":
+        rpm_version = f"{rpm_version}+{release_version}"
 
     staging = Path(tempfile.mkdtemp(prefix="rpm-staging-"))
     rpmroot = staging / "rpmbuild"
