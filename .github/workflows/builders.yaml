@@ -104,7 +104,7 @@ jobs:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
           path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.triplet == 'linux-amd64'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
@@ -135,6 +135,13 @@ jobs:
             echo "No release files to upload."
             exit 0
           fi
+          for i in {1..12}; do
+            if gh release view "${tag}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+              break
+            fi
+            echo "Release ${tag} not ready yet, waiting... ($i)"
+            sleep 10
+          done
           gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
 
 
@@ -189,7 +196,7 @@ jobs:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
           path: ${{ steps.package.outputs.artifact_path }}
       - name: Publish ${{ matrix.builder }} release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.triplet == 'linux-amd64'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
@@ -220,4 +227,11 @@ jobs:
             echo "No release files to upload."
             exit 0
           fi
+          for i in {1..12}; do
+            if gh release view "${tag}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+              break
+            fi
+            echo "Release ${tag} not ready yet, waiting... ($i)"
+            sleep 10
+          done
           gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
