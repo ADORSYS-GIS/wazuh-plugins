@@ -28,25 +28,18 @@ jobs:
           set -euo pipefail
           VERSION="${{ inputs.version }}"
           STAGE_ROOT="artifacts/scripts-${VERSION}"
+          mkdir -p "$STAGE_ROOT"
 
-          mkdir -p "$STAGE_ROOT/scripts"
-          python .github/scripts/generate_install_wrappers.py --version "$VERSION" --output-dir "$STAGE_ROOT/scripts"
+          python .github/scripts/generate_install_wrappers.py --version "$VERSION" --output-dir "$STAGE_ROOT"
 
           builders=(yara suricata wazuh-agent)
           for b in "${builders[@]}"; do
-            mkdir -p "$STAGE_ROOT/builders/$b"
-            cp "builders/$b/scripts/install.sh" "$STAGE_ROOT/builders/$b/install.sh"
-            cp "builders/$b/scripts/uninstall.sh" "$STAGE_ROOT/builders/$b/uninstall.sh"
-            for meta in version.txt release.txt package_revision.txt; do
-              if [ -f "builders/$b/$meta" ]; then
-                cp "builders/$b/$meta" "$STAGE_ROOT/builders/$b/$meta"
-              fi
-            done
+            cp "builders/$b/scripts/install.sh" "$STAGE_ROOT/${b}-install.sh"
+            cp "builders/$b/scripts/uninstall.sh" "$STAGE_ROOT/${b}-uninstall.sh"
           done
 
-          mkdir -p artifacts
-          tar -czf "artifacts/scripts-${VERSION}.tar.gz" -C artifacts "scripts-${VERSION}"
-          ls -l artifacts
+          echo "STAGE_ROOT=$STAGE_ROOT" >> "$GITHUB_ENV"
+          ls -l "$STAGE_ROOT"
 
       - name: Publish scripts release
         uses: softprops/action-gh-release@v2
@@ -56,6 +49,14 @@ jobs:
           make_latest: ${{ inputs.make_latest }}
           draft: false
           prerelease: false
-          files: artifacts/scripts-${{ inputs.version }}.tar.gz
+          files: |
+            ${{ env.STAGE_ROOT }}/install.sh
+            ${{ env.STAGE_ROOT }}/uninstall.sh
+            ${{ env.STAGE_ROOT }}/yara-install.sh
+            ${{ env.STAGE_ROOT }}/yara-uninstall.sh
+            ${{ env.STAGE_ROOT }}/suricata-install.sh
+            ${{ env.STAGE_ROOT }}/suricata-uninstall.sh
+            ${{ env.STAGE_ROOT }}/wazuh-agent-install.sh
+            ${{ env.STAGE_ROOT }}/wazuh-agent-uninstall.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

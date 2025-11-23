@@ -45,9 +45,14 @@ for builder in "${builders[@]}"; do
 done
 
 for builder in "${builders[@]}"; do
-  script_path="$ROOT/builders/$builder/scripts/uninstall.sh"
-  if [ ! -x "$script_path" ]; then
-    log "Uninstaller not found for $builder at $script_path"
+  script_path_local="$SCRIPT_DIR/${builder}-uninstall.sh"
+  script_path_repo="$ROOT/builders/$builder/scripts/uninstall.sh"
+  if [ -x "$script_path_local" ]; then
+    script_path="$script_path_local"
+  elif [ -x "$script_path_repo" ]; then
+    script_path="$script_path_repo"
+  else
+    log "Uninstaller not found for $builder (looked in $script_path_local and $script_path_repo)"
     exit 1
   fi
 
