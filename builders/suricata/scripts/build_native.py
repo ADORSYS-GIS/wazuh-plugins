@@ -106,19 +106,13 @@ def resolve_rule_bundle(builder_root: Path) -> tuple[Path, dict]:
             raise SystemExit(f"RULE_BUNDLE path does not exist: {bundle}")
         return bundle, {"source": "custom", "tag": "manual", "flavor": "custom"}
 
-    print(f"=> Should '{builder_root}'")
-    
     metadata = load_rules_metadata(builder_root)
-    print(f"=> Metadata '{metadata}'")
     
     flavor = os.environ.get("RULES_FLAVOR", "open")
-    print(f"=> Flavor '{flavor}'")
     
     cache_root = Path(os.environ.get("RULES_CACHE", builder_root / "rules-cache")).resolve()
-    print(f"=> Cache root '{cache_root}'")
     
     expected = cache_root / metadata.get("tag", "unknown") / flavor
-    print(f"=> Cache root / tag / flavor '{expected}'")
 
     if expected.exists():
         return expected, {"source": metadata.get("source"), "tag": metadata.get("tag"), "flavor": flavor}

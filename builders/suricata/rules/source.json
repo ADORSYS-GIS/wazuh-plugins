@@ -3,7 +3,7 @@
   "tag": "open-8.0.2-all",
   "assets": {
     "open": {
-      "name": "emerging-all.rules",
+      "name": "suricata.rules",
       "sha256": "2ae5d8eaba446073bc3deb14d43bf440cf66b536681d23524f5e3687e3c2b5c4",
       "bundle_path": "",
       "url": "https://rules.emergingthreats.net/open/suricata-8.0.2/emerging-all.rules"
