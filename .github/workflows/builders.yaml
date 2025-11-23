@@ -40,6 +40,7 @@ jobs:
   build-linux:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
+    name: "Linux ${{ matrix.builder }} ${{ matrix.triplet }}"
     strategy:
       fail-fast: false
       matrix:
