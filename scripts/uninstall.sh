@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PINNED_VERSION="${PINNED_VERSION:-0.5.1}"
+PINNED_VERSION="${PINNED_VERSION:-0.5.2}"
 DEFAULT_BUILDERS=("yara" "suricata" "wazuh-agent")
 
 log() {
