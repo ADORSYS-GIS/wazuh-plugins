@@ -71,11 +71,6 @@ jobs:
           set -euo pipefail
           multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
           echo "PKG_CONFIG_PATH=/usr/lib/${multiarch}/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
-#      - name: Cache Python venv
-#        uses: actions/cache@v4
-#        with:
-#          path: .venv
-#          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |
@@ -162,11 +157,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-#      - name: Cache Python venv
-#        uses: actions/cache@v4
-#        with:
-#          path: .venv
-#          key: python-venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/venv-requirements.txt') }}
       - name: Set up Python environment
         shell: bash
         run: |

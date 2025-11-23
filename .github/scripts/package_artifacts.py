@@ -19,6 +19,15 @@ def package_artifacts(builder: str, triplet: str) -> None:
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True, exist_ok=True)
 
+    scripts_dir = repo_root / "builders" / builder / "scripts"
+    if scripts_dir.exists():
+        shutil.copytree(scripts_dir, stage_dir / "scripts", dirs_exist_ok=True)
+
+    for meta_name in ("version.txt", "release.txt", "package_revision.txt"):
+        meta_path = repo_root / "builders" / builder / meta_name
+        if meta_path.exists():
+            shutil.copy2(meta_path, stage_dir / meta_name)
+
     if not artifact_dir.exists():
         raise SystemExit(f"Package artifacts directory not found: {artifact_dir}")
 
