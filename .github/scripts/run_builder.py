@@ -54,7 +54,7 @@ def build_native(
     clean_artifact_dest(artifact_dest)
     script = pipeline.get("native_build_script")
     if not script:
-        script = "scripts/build_native.py"
+        script = "build/main.py"
     script_path = (config_dir / script).resolve()
     if not script_path.exists():
         raise FileNotFoundError(f"Native build script not found: {script_path}")
