@@ -71,7 +71,7 @@ def resolve_rule_bundle(
     if local_rules.exists() and list(local_rules.glob("*.rules")):
         return local_rules, {"source": "local", "tag": "local", "flavor": "local"}
 
-    fetcher = builder_root / "scripts" / fetcher_script_name
+    fetcher = (builder_root / fetcher_script_name).resolve()
     if not fetcher.exists():
         raise SystemExit(f"Fetcher script not found: {fetcher}")
 
@@ -85,7 +85,7 @@ def resolve_rule_bundle(
 
     raise SystemExit(
         "Rule bundle not found. Run "
-        f"'python builders/{builder_root.name}/scripts/{fetcher_script_name} --flavor {flavor}' "
+        f"'python {fetcher} --flavor {flavor}' "
         f"or set RULE_BUNDLE to an existing path."
     )
 
