@@ -2,7 +2,7 @@
 
 set -ex
 
-IFACES=($(ls /sys/class/net | grep -i en))
+IFACES=($(ls /sys/class/net | grep -v lo))
 
 args=()
 for i in "${IFACES[@]}"; do

@@ -2,7 +2,6 @@
 set -e
 
 COMP_PREFIX=${1:-/opt/wazuh/yara}
-SERVICE_NAME="suricata-wazuh.service"
 
 # Find a suitable nologin shell
 if command -v nologin >/dev/null 2>&1; then
