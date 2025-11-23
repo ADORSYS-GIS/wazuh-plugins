@@ -19,14 +19,6 @@ def package_artifacts(builder: str, triplet: str) -> None:
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True, exist_ok=True)
 
-    scripts_dir = repo_root / "builders" / builder / "scripts"
-    if scripts_dir.exists():
-        for name in ("install.sh", "uninstall.sh"):
-            src = scripts_dir / name
-            if src.exists():
-                dest = stage_dir / f"{builder}-{version}-{triplet}-{name}"
-                shutil.copy2(src, dest)
-
     for meta_name in ("version.txt", "release.txt", "package_revision.txt"):
         meta_path = repo_root / "builders" / builder / meta_name
         if meta_path.exists():
