@@ -251,7 +251,7 @@ exec "${{script_dir}}/{real.name}" "$@"
             target.chmod(0o770)
 
 
-def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_dir: Path) -> None:
+def install_rules_and_scripts(release_root: Path, rule_bundle: Path, component_root: Path, script_dir: Path) -> None:
     rules_dest = component_root / "rules"
     rules_dest.mkdir(parents=True, exist_ok=True)
     if not rule_bundle.exists():
@@ -267,6 +267,13 @@ def install_rules_and_scripts(rule_bundle: Path, component_root: Path, script_di
             shutil.copytree(rule_bundle, rules_dest, dirs_exist_ok=True)
     else:
         raise SystemExit(f"Unsupported rule bundle type: {rule_bundle}")
+
+    local_rules = release_root / "rules"
+    yar_files = list(local_rules.rglob("*.yar"))
+    if yar_files:
+        for file in yar_files:
+            shutil.copy2(file, rules_dest / file.name)
+    
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
     for script_name in ["postinstall.sh"]: # TODO @sse
@@ -339,7 +346,7 @@ def build_yara(cfg: wb_config.BuilderConfig, dest: Path, triplet: str, version: 
     packaging.prune_payload_directory(component_root)
     bundle_runtime_libs(component_root)
     wrap_linux_binaries(component_root)
-    install_rules_and_scripts(rule_bundle, component_root, Path(__file__).parent)
+    install_rules_and_scripts(release_root, rule_bundle, component_root, Path(__file__).parent)
     write_metadata(component_root, triplet, release_name, version, yara_version, rules_info)
     fix_permissions(component_root)
     package_release(cfg, dest, component_root, release_root, release_name, triplet, version, yara_version)

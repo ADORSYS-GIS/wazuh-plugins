@@ -40,7 +40,7 @@ jobs:
   build-linux:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
-    name: "Linux ${{ matrix.builder }} ${{ matrix.triplet }}"
+    name: "Linux x ${{ matrix.builder }} x ${{ matrix.triplet }}"
     strategy:
       fail-fast: false
       matrix:
@@ -142,10 +142,11 @@ jobs:
           fi
           gh release upload "${tag}" "${asset_paths[@]}" --clobber --repo "${{ github.repository }}"
 
-## TODO @sse
+
   build-macos:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
+    name: "MacOS x ${{ matrix.builder }} x ${{ matrix.triplet }}"
     strategy:
       fail-fast: false
       matrix:

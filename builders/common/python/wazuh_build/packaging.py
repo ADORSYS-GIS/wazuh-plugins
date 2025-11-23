@@ -62,8 +62,8 @@ def prune_payload_directory(target_dir: Path) -> None:
         return
     for path in [
         target_dir / "include",
-        #target_dir / "share" / "doc",
-        #target_dir / "share" / "man",
+        target_dir / "share" / "doc",
+        target_dir / "share" / "man",
         target_dir / "share" / "info",
         target_dir / "lib" / "pkgconfig",
         target_dir / "var" / "lib",
