@@ -428,14 +428,14 @@ def package_release(
         outbase,
         release_root,
         "/opt/wazuh/suricata",
-        f"{suricata_version}+{builder_version}",
+        builder_version,
         dist_dir,
     )
     rpm_pkg = packaging.package_rpm(
         outbase,
         release_root,
         "/opt/wazuh/suricata",
-        f"{suricata_version}+{builder_version}",
+        builder_version,
         dist_dir,
         requires="glibc, libpcap, pcre2, libyaml, file-libs, lz4-libs, libcap-ng",
         extra_files=["/lib/systemd/system/suricata-wazuh.service"],

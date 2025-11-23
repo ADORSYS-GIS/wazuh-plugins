@@ -78,6 +78,10 @@ def prepare_dest(release_root: Path, component_root: Path, dest: Path) -> None:
 
 
 def download_and_unpack(version: str, target: Path) -> Path:
+    # YARA uses version tags with 'v' prefix (e.g., v4.3.2)
+    if not version.startswith('v'):
+        version = f'v{version}'
+        
     url = f"https://github.com/VirusTotal/yara/archive/refs/tags/{version}.tar.gz"
     tarball = target / "yara.tar.gz"
     shell.run(["curl", "-fsSL", url, "-o", str(tarball)])
@@ -376,14 +380,14 @@ def package_release(
         outbase,
         release_root,
         "/opt/wazuh/yara",
-        f"{yara_version}+{builder_version}",
+        builder_version,
         dist_dir,
     )
     rpm_pkg = packaging.package_rpm(
         outbase,
         release_root,
         "/opt/wazuh/yara",
-        f"{yara_version}+{builder_version}",
+        builder_version,
         dist_dir,
         requires="glibc, file-libs, jansson",
     )

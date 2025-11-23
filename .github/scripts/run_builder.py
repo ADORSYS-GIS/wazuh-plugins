@@ -95,9 +95,13 @@ def main() -> None:
 
     ci = data.get("ci", {})
     pipeline = data.get("pipeline", {})
-    version_file = pipeline.get("version_file", "version.txt")
-    version_path = (config_dir / version_file).resolve()
-    version = version_path.read_text().strip()
+    release_file = pipeline.get("release_file", "release.txt")
+    release_version = (config_dir / release_file).resolve().read_text().strip()
+
+    upstream_version_file = pipeline.get("version_file", "version.txt")
+    upstream_version = (config_dir / upstream_version_file).resolve().read_text().strip()
+    version = f"{upstream_version}+{release_version}"
+    
     artifacts_cfg = pipeline.get("artifacts", {})
     artifact_dest = resolve_artifact_dest(
         config_dir, artifacts_cfg, args.artifact_triplet
