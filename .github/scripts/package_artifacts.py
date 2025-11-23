@@ -30,7 +30,8 @@ def package_artifacts(builder: str, triplet: str) -> None:
     for meta_name in ("version.txt", "release.txt", "package_revision.txt"):
         meta_path = repo_root / "builders" / builder / meta_name
         if meta_path.exists():
-            shutil.copy2(meta_path, stage_dir / meta_name)
+            dest_name = f"{builder}-{version}-{triplet}-{meta_name}"
+            shutil.copy2(meta_path, stage_dir / dest_name)
 
     if not artifact_dir.exists():
         raise SystemExit(f"Package artifacts directory not found: {artifact_dir}")
