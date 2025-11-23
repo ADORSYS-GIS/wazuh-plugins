@@ -11,7 +11,16 @@ from . import platform as wb_platform
 from . import shell, utils
 
 
-def write_pom(output: Path, component: str, component_version: str, platform_os: str, platform_arch: str, builder: str, triplet: str, upstream: Optional[dict] = None) -> None:
+def write_pom(
+    output: Path,
+    component: str,
+    component_version: str,
+    platform_os: str,
+    platform_arch: str,
+    builder: str,
+    triplet: str,
+    upstream: Optional[dict] = None,
+) -> None:
     payload = {
         "artifact": component,
         "version": component_version,
@@ -85,7 +94,14 @@ def make_tarball(src_dir: Path, tarball: Path) -> None:
         tf.add(src_dir, arcname=src_dir.name)
 
 
-def package_deb(outbase: str, release_dir: Path, component_prefix: str, component_version: str, dest: Path, package_name: Optional[str] = None) -> Optional[Path]:
+def package_deb(
+    outbase: str,
+    release_dir: Path,
+    component_prefix: str,
+    component_version: str,
+    dest: Path,
+    package_name: Optional[str] = None,
+) -> Optional[Path]:
     if wb_platform.os_id() != "linux":
         return None
     if not shell.command_exists("dpkg-deb"):
@@ -97,10 +113,16 @@ def package_deb(outbase: str, release_dir: Path, component_prefix: str, componen
         (staging / "DEBIAN").mkdir(parents=True, exist_ok=True)
         shell.run(["cp", "-R", f"{release_dir}/.", str(staging)])
 
-        deb_arch = {"amd64": "amd64", "arm64": "arm64"}.get(wb_platform.arch_id(), "all")
+        deb_arch = {"amd64": "amd64", "arm64": "arm64"}.get(
+            wb_platform.arch_id(), "all"
+        )
         component_path = staging / component_prefix.lstrip("/")
         installed_size = int(os.popen(f"du -ks {component_path}").read().split()[0])
-        deb_version = component_version[1:] if component_version.startswith("v") else component_version
+        deb_version = (
+            component_version[1:]
+            if component_version.startswith("v")
+            else component_version
+        )
         pkg_name = package_name or Path(component_prefix).name
         control_content = f"""Package: {pkg_name}
 Maintainer: Wazuh Plugins <info@adorsys.com>
@@ -112,7 +134,7 @@ Architecture: {deb_arch}
 Installed-Size: {installed_size}
 """
         (staging / "DEBIAN" / "control").write_text(control_content)
-        postinst = (staging / "DEBIAN" / "postinst")
+        postinst = staging / "DEBIAN" / "postinst"
         postinst.write_text(
             f"""#!/bin/sh
 set -e
@@ -152,19 +174,21 @@ def package_rpm(
 ) -> Optional[Path]:
     if wb_platform.os_id() != "linux":
         return None
-    
+
     if not shell.command_exists("rpmbuild"):
         return None
-    
-    rpm_arch = {"amd64": "x86_64", "arm64": "aarch64"}.get(wb_platform.arch_id(), "noarch")
+
+    rpm_arch = {"amd64": "x86_64", "arm64": "aarch64"}.get(
+        wb_platform.arch_id(), "noarch"
+    )
     import tempfile
 
     staging = Path(tempfile.mkdtemp(prefix="rpm-staging-"))
     rpmroot = staging / "rpmbuild"
-    
+
     for sub in ["BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS"]:
         (rpmroot / sub).mkdir(parents=True, exist_ok=True)
-        
+
     spec = rpmroot / "SPECS" / "package.spec"
     req_line = f"Requires: {requires}\n" if requires else ""
     pkg_name = package_name or Path(component_prefix).name
@@ -199,6 +223,7 @@ cp -a {release_dir}/. %{{buildroot}}
 {extra_files_lines}
 """
     )
+
     def cleanup_staging() -> None:
         import shutil
 

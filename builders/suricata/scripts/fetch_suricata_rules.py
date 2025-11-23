@@ -2,51 +2,16 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import shutil
+import sys
 import tarfile
-import tempfile
 from pathlib import Path
-from typing import Dict
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-def load_metadata(path: Path) -> Dict:
-    if not path.exists():
-        raise SystemExit(f"Rule metadata file not found: {path}")
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        raise SystemExit(f"Unable to parse metadata {path}: {exc}") from exc
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(8192), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def download(url: str, dest: Path) -> None:
-    import urllib.request
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as resp, dest.open("wb") as fh:
-        shutil.copyfileobj(resp, fh)
-
-
-def ensure_archive(asset_url: str, sha256: str, archive_path: Path, force: bool) -> Path:
-    if archive_path.exists() and not force:
-        if sha256_file(archive_path) != sha256:
-            raise SystemExit(f"Cached archive checksum mismatch: {archive_path}")
-        return archive_path
-    download(asset_url, archive_path)
-    actual = sha256_file(archive_path)
-    if actual != sha256:
-        archive_path.unlink(missing_ok=True)
-        raise SystemExit(f"Downloaded archive checksum mismatch (expected {sha256}, got {actual})")
-    return archive_path
+from builders.common.python.wazuh_build import rules
 
 
 def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
@@ -70,33 +35,25 @@ def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
     return output_dir
 
 
-def fetch_rules(meta: Dict, flavor: str, dest: Path, force: bool = False) -> Path:
-    assets = meta.get("assets", {})
-    if flavor not in assets:
-        raise SystemExit(f"Flavor '{flavor}' not defined in metadata. Available: {', '.join(sorted(assets))}")
-    asset = assets[flavor]
-    tag = meta.get("tag", "unknown")
-    asset_name = asset["name"]
-    sha256 = asset["sha256"]
-    bundle_path = asset.get("bundle_path", "")
-
-    cache_root = dest.resolve()
-    archive_path = cache_root / asset_name
-    asset_url = asset.get("url") or f"{meta.get('source').rstrip('/')}/{asset_name}"
-
-    archive = ensure_archive(asset_url, sha256, archive_path, force)
-    output_dir = cache_root / tag / flavor
-    extracted = extract_bundle(archive, bundle_path, output_dir)
-    print(f"Fetched Suricata rules flavor '{flavor}' (tag {tag}) into: {extracted}")
-    return extracted
-
-
-def parse_args(meta: Dict) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Fetch and verify Suricata rule bundles.")
-    parser.add_argument("--metadata", type=Path, default=None, help="Path to source.json metadata.")
-    parser.add_argument("--dest", type=Path, default=None, help="Rules cache directory.")
-    parser.add_argument("--flavor", choices=sorted(meta.get("assets", {}).keys()), default="open", help="Rule flavor to fetch.")
-    parser.add_argument("--force", action="store_true", help="Redownload even if cached.")
+def parse_args(meta: dict) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Fetch and verify Suricata rule bundles."
+    )
+    parser.add_argument(
+        "--metadata", type=Path, default=None, help="Path to source.json metadata."
+    )
+    parser.add_argument(
+        "--dest", type=Path, default=None, help="Rules cache directory."
+    )
+    parser.add_argument(
+        "--flavor",
+        choices=sorted(meta.get("assets", {}).keys()),
+        default="open",
+        help="Rule flavor to fetch.",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Redownload even if cached."
+    )
     return parser.parse_args()
 
 
@@ -106,12 +63,24 @@ def main() -> None:
     default_metadata = builder_root / "rules" / "source.json"
     default_dest = builder_root / "rules-cache"
 
-    prelim_meta = load_metadata(default_metadata)
+    prelim_meta = rules.load_rules_metadata(builder_root)
     args = parse_args(prelim_meta)
 
-    meta = load_metadata(args.metadata or default_metadata)
+    meta = rules.load_rules_metadata(builder_root)
+    if args.metadata:
+        # If metadata path is explicitly provided, load it (though we prefer builder_root based)
+        # But since load_rules_metadata takes builder_root, we might need to adjust if we want to support arbitrary metadata paths
+        # For now, let's stick to the pattern. If args.metadata is different, we might need to handle it.
+        # However, the original script allowed --metadata.
+        # Let's just use the one from args if provided, otherwise default.
+        import json
+        try:
+            meta = json.loads(args.metadata.read_text(encoding="utf-8"))
+        except Exception as exc:
+             raise SystemExit(f"Unable to parse metadata {args.metadata}: {exc}") from exc
+
     dest = (args.dest or default_dest).resolve()
-    fetch_rules(meta, args.flavor, dest, args.force)
+    rules.fetch_rules(meta, args.flavor, dest, extract_bundle, args.force)
 
 
 if __name__ == "__main__":

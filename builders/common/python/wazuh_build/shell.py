@@ -14,7 +14,14 @@ def _stringify(cmd: Command) -> str:
     return " ".join(shlex.quote(str(part)) for part in cmd)
 
 
-def run(cmd: Command, *, cwd: Optional[Path] = None, env: Optional[Mapping[str, str]] = None, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+def run(
+    cmd: Command,
+    *,
+    cwd: Optional[Path] = None,
+    env: Optional[Mapping[str, str]] = None,
+    check: bool = True,
+    capture: bool = False,
+) -> subprocess.CompletedProcess:
     """Run a command with minimal logging."""
     cmd_list = cmd if isinstance(cmd, (list, tuple)) else cmd
     print(f"[cmd] {_stringify(cmd_list)}")
@@ -31,4 +38,9 @@ def run(cmd: Command, *, cwd: Optional[Path] = None, env: Optional[Mapping[str, 
 
 
 def command_exists(name: str) -> bool:
-    return subprocess.call(["which", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    return (
+        subprocess.call(
+            ["which", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        == 0
+    )

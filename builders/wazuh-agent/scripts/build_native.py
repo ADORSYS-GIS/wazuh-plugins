@@ -11,8 +11,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from builders.common.python.wazuh_build import config as wb_config
-from builders.common.python.wazuh_build import deps, packaging, platform as wb_platform, sbom, shell
+from builders.common.python.wazuh_build import config as wb_config  # noqa: E402
+from builders.common.python.wazuh_build import (  # noqa: E402
+    deps,
+    packaging,
+    platform as wb_platform,
+    sbom,
+    shell,
+)
 
 
 def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
@@ -43,7 +49,9 @@ def prepare_dest(release_root: Path, dest: Path) -> None:
     (dest / "artifacts").mkdir(parents=True, exist_ok=True)
 
 
-def download_linux_deb(version: str, revision: str, arch: str, target: Path) -> tuple[Path, str]:
+def download_linux_deb(
+    version: str, revision: str, arch: str, target: Path
+) -> tuple[Path, str]:
     stream = stream_from_version(version)
     filename = f"wazuh-agent_{version}-{revision}_{arch}.deb"
     url = f"https://packages.wazuh.com/{stream}/apt/pool/main/w/wazuh-agent/{filename}"
@@ -52,7 +60,9 @@ def download_linux_deb(version: str, revision: str, arch: str, target: Path) -> 
     return dest, url
 
 
-def download_macos_pkg(version: str, revision: str, arch: str, target: Path) -> tuple[Path, str]:
+def download_macos_pkg(
+    version: str, revision: str, arch: str, target: Path
+) -> tuple[Path, str]:
     stream = stream_from_version(version)
     filename = f"wazuh-agent-{version}-{revision}.{arch}.pkg"
     url = f"https://packages.wazuh.com/{stream}/macos/{filename}"
@@ -107,7 +117,11 @@ def write_metadata(
 
 
 def _should_be_executable(path: Path) -> bool:
-    return path.parent.name == "bin" or path.suffix in {".sh", ".py"} or os.access(path, os.X_OK)
+    return (
+        path.parent.name == "bin"
+        or path.suffix in {".sh", ".py"}
+        or os.access(path, os.X_OK)
+    )
 
 
 def fix_permissions(component_root: Path) -> None:
@@ -147,7 +161,9 @@ def package_release(
     sbom_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copytree(release_root, artifact_root, dirs_exist_ok=True)
-    packaging.prune_payload_directory(artifact_root / component_root.relative_to(release_root))
+    packaging.prune_payload_directory(
+        artifact_root / component_root.relative_to(release_root)
+    )
 
     syft_version = cfg.build_setting("syft_version") or "v1.5.0"
     sbom.generate_sboms(
@@ -214,7 +230,9 @@ def build_wazuh_agent(
 ) -> None:
     platform_os = wb_platform.os_id()
     platform_arch = wb_platform.arch_id()
-    release_name = f"wazuh-agent-{agent_version}-r{package_revision}-{platform_os}-{platform_arch}"
+    release_name = (
+        f"wazuh-agent-{agent_version}-r{package_revision}-{platform_os}-{platform_arch}"
+    )
     release_root = dest / "release" / release_name
     component_prefix = "/var/ossec" if platform_os == "linux" else "/Library/Ossec"
     component_root = release_root / component_prefix.lstrip("/")
@@ -228,13 +246,17 @@ def build_wazuh_agent(
             deb_arch = {"amd64": "amd64", "arm64": "arm64"}.get(platform_arch)
             if not deb_arch:
                 raise SystemExit(f"Unsupported linux architecture: {platform_arch}")
-            deb_path, package_source = download_linux_deb(agent_version, package_revision, deb_arch, build_root)
+            deb_path, package_source = download_linux_deb(
+                agent_version, package_revision, deb_arch, build_root
+            )
             extract_linux_package(deb_path, release_root)
         elif platform_os == "macos":
             pkg_arch = {"amd64": "intel64", "arm64": "arm64"}.get(platform_arch)
             if not pkg_arch:
                 raise SystemExit(f"Unsupported macOS architecture: {platform_arch}")
-            pkg_path, package_source = download_macos_pkg(agent_version, package_revision, pkg_arch, build_root)
+            pkg_path, package_source = download_macos_pkg(
+                agent_version, package_revision, pkg_arch, build_root
+            )
             extract_macos_package(pkg_path, release_root)
         else:
             raise SystemExit(f"Unsupported platform: {platform_os}/{platform_arch}")
@@ -275,7 +297,9 @@ def main() -> None:
     builder_root = script_dir.parent
     config_path = builder_root / "config.yaml"
     cfg = wb_config.BuilderConfig(config_path)
-    dest = Path(os.environ.get("ARTIFACT_DEST", builder_root / "dist" / triplet)).resolve()
+    dest = Path(
+        os.environ.get("ARTIFACT_DEST", builder_root / "dist" / triplet)
+    ).resolve()
     agent_version = os.environ.get("PIPELINE_VERSION", "").strip()
     package_revision = os.environ.get("PACKAGE_REVISION", "1").strip() or "1"
 

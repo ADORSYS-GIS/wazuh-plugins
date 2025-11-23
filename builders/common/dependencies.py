@@ -97,11 +97,24 @@ def read_value(path: Path, dotted: str) -> Any:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract dependency lists or config values from builder config files.")
+    parser = argparse.ArgumentParser(
+        description="Extract dependency lists or config values from builder config files."
+    )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--section", choices=["apt", "bash", "brew"], help="Dependency section to extract.")
-    group.add_argument("--value", help="Dotted config key to read (uses the first config only).")
-    parser.add_argument("--format", choices=["lines", "json"], default="lines", help="Output format (for dependencies).")
+    group.add_argument(
+        "--section",
+        choices=["apt", "bash", "brew"],
+        help="Dependency section to extract.",
+    )
+    group.add_argument(
+        "--value", help="Dotted config key to read (uses the first config only)."
+    )
+    parser.add_argument(
+        "--format",
+        choices=["lines", "json"],
+        default="lines",
+        help="Output format (for dependencies).",
+    )
     parser.add_argument("configs", nargs="+", type=Path, help="Config files to read.")
     args = parser.parse_args()
 

@@ -1,11 +1,10 @@
 import os
 import shlex
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from . import shell, utils
+from . import shell, utils, download
 
 
 def install_apt(packages: Iterable[str]) -> None:
@@ -22,7 +21,9 @@ def install_brew(packages: Iterable[str]) -> None:
         return
 
     def is_installed(pkg: str) -> bool:
-        result = shell.run(["brew", "list", "--versions", pkg], check=False, capture=True)
+        result = shell.run(
+            ["brew", "list", "--versions", pkg], check=False, capture=True
+        )
         return result.returncode == 0 and bool((result.stdout or "").strip())
 
     missing = [pkg for pkg in pkgs if not is_installed(pkg)]
@@ -66,7 +67,9 @@ def ensure_syft(version: str, tools_dir: Path) -> Path:
     if syft_target.exists():
         return syft_target
     install_script = "https://raw.githubusercontent.com/anchore/syft/main/install.sh"
-    shell.run(f"curl -sSfL {install_script} | sh -s -- -b {shlex.quote(str(cache_dir))} {version}")
+    shell.run(
+        f"curl -sSfL {install_script} | sh -s -- -b {shlex.quote(str(cache_dir))} {version}"
+    )
     final = cache_dir / "syft"
     if not final.exists():
         raise RuntimeError("syft installation failed")
@@ -79,7 +82,9 @@ def ensure_cbindgen() -> None:
         if not shell.command_exists("cbindgen"):
             return None
         try:
-            result = subprocess.check_output(["cbindgen", "--version"], text=True).strip()
+            result = subprocess.check_output(
+                ["cbindgen", "--version"], text=True
+            ).strip()
             return result.split()[-1]
         except Exception:
             return None
@@ -89,13 +94,13 @@ def ensure_cbindgen() -> None:
         return
     if not shell.command_exists("cargo"):
         raise RuntimeError("cargo not available to install cbindgen")
-    
+
     cache_dir = utils.DEFAULT_CACHE_DIR / "cargo-bin"
     env = os.environ.copy()
     env["CARGO_INSTALL_ROOT"] = str(cache_dir)
     shell.run(["cargo", "install", "--locked", "--force", "cbindgen"], env=env)
     # Add to PATH
-    os.environ["PATH"] = f"{cache_dir}/bin:{os.environ.get('PATH','')}"
+    os.environ["PATH"] = f"{cache_dir}/bin:{os.environ.get('PATH', '')}"
 
 
 def _version_at_least(version: str, required: str) -> bool:
@@ -112,7 +117,9 @@ def ensure_pkg_config_path() -> None:
     candidates = []
     multiarch = ""
     try:
-        result = shell.run(["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], capture=True, check=False)
+        result = shell.run(
+            ["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], capture=True, check=False
+        )
         multiarch = (result.stdout or "").strip()
     except Exception:
         multiarch = ""
@@ -125,3 +132,28 @@ def ensure_pkg_config_path() -> None:
         parts.append(existing)
     if parts:
         os.environ["PKG_CONFIG_PATH"] = ":".join(parts)
+
+
+def require_tools(tool_names: list[str]) -> None:
+    missing = [tool for tool in tool_names if not shell.command_exists(tool)]
+    if missing:
+        raise SystemExit(f"Missing required tools: {', '.join(missing)}")
+
+
+def require_libraries(lib_names: list[str]) -> None:
+    missing: list[str] = []
+    for lib in lib_names:
+        try:
+            shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
+        except Exception:
+            if lib == "libmagic":
+                # libmagic pkg-config metadata is flaky; if headers exist, continue without failing.
+                if download.has_magic_header():
+                    continue
+                print(
+                    "Warning: libmagic pkg-config check failed; proceeding because header is absent check only."
+                )
+                continue
+            missing.append(lib)
+    if missing:
+        raise SystemExit(f"Missing required libraries: {', '.join(missing)}")

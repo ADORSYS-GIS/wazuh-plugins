@@ -33,7 +33,9 @@ class BuilderConfig:
         return str(value) if value is not None else None
 
 
-def resolve_artifact_dest(config_dir: Path, artifacts_cfg: Dict[str, Any], artifact_triplet: Optional[str]) -> Path:
+def resolve_artifact_dest(
+    config_dir: Path, artifacts_cfg: Dict[str, Any], artifact_triplet: Optional[str]
+) -> Path:
     artifact_dest_cfg = artifacts_cfg.get("dest")
     if artifact_triplet:
         return (config_dir / "dist" / artifact_triplet).resolve()

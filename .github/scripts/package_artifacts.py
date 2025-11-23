@@ -14,7 +14,6 @@ def package_artifacts(builder: str, triplet: str) -> None:
     artifacts_root = repo_root / "artifacts"
     stage_name = f"{builder}-{version}-{triplet}"
     stage_dir = artifacts_root / stage_name
-    stage_rel = Path("artifacts") / stage_name
 
     if stage_dir.exists():
         shutil.rmtree(stage_dir)

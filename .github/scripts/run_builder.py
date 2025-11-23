@@ -65,7 +65,7 @@ def build_native(
             "ARTIFACT_DEST": str(artifact_dest),
             "PIPELINE_VERSION": version,
             "PIPELINE_NAME": pipeline.get("name", config_dir.name),
-            "PYTHONPATH": f"{repo_root}:{env.get('PYTHONPATH','')}",
+            "PYTHONPATH": f"{repo_root}:{env.get('PYTHONPATH', '')}",
         }
     )
     if artifact_triplet:
@@ -73,7 +73,9 @@ def build_native(
 
     log(f"Executing native build script {script_path}")
     if script_path.suffix == ".py":
-        subprocess.run(["python3", str(script_path)], check=True, cwd=config_dir, env=env)
+        subprocess.run(
+            ["python3", str(script_path)], check=True, cwd=config_dir, env=env
+        )
     else:
         subprocess.run([str(script_path)], check=True, cwd=config_dir, env=env)
 
@@ -97,7 +99,9 @@ def main() -> None:
     version_path = (config_dir / version_file).resolve()
     version = version_path.read_text().strip()
     artifacts_cfg = pipeline.get("artifacts", {})
-    artifact_dest = resolve_artifact_dest(config_dir, artifacts_cfg, args.artifact_triplet)
+    artifact_dest = resolve_artifact_dest(
+        config_dir, artifacts_cfg, args.artifact_triplet
+    )
     builder_mode = pipeline.get("builder", "native")
 
     for command in ci.get("lint", []):
@@ -113,7 +117,9 @@ def main() -> None:
         run_command(command, config_dir)
 
     if builder_mode != "native":
-        raise ValueError(f"Unsupported builder mode '{builder_mode}'. Only native builds are supported.")
+        raise ValueError(
+            f"Unsupported builder mode '{builder_mode}'. Only native builds are supported."
+        )
 
     build_native(
         config_dir,
