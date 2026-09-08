@@ -160,15 +160,14 @@ jobs:
       fail-fast: false
       matrix:
         builder: ${{ fromJson(needs.discover.outputs.builder_names) }}
-        os: [macos-14-large, macos-latest]
         include:
-          - os: macos-14-large
-            arch: amd64
+          - arch: amd64
             triplet: macos-amd64
-          - os: macos-latest
-            arch: arm64
+            runner: [self-hosted, wazuh-runner, X64]
+          - arch: arm64
             triplet: macos-arm64
-    runs-on: ${{ matrix.os }}
+            runner: [self-hosted, wazuh-runner, ARM64]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
       - name: Set up Python environment
