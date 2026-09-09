@@ -1,5 +1,11 @@
 # Wazuh Plugins Build System
 
+[![Builder cache images](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/cache-builders.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/cache-builders.yaml)
+[![Builder pipelines](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/builders.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/builders.yaml)
+[![Scripts release](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/scripts-release.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/scripts-release.yaml)
+[![SonarQube](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml)
+[![Test Artifacts](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml)
+
 ## Project Purpose
 
 This repository is a Wazuh Plugins Build System designed to automate the compilation, packaging, and distribution of security tools that complement Wazuh deployments. The main goal is to provide a unified, multi-architecture build pipeline that creates native packages for Suricata IDS, YARA malware scanner, and repackaged Wazuh agents.
