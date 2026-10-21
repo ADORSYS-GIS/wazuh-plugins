@@ -11,12 +11,41 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Run Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov pyyaml
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=. --cov-report=xml:coverage.xml --cov-report=term tests/
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
   scan:
     name: SonarQube Scan
-    uses: ADORSYS-GIS/adorsys-ci-cd-templates/.github/workflows/sonarqube.yml@1566ed0da26bd29f41625655dd7171a5464762fd # main
+    needs: test
+    uses: ADORSYS-GIS/adorsys-ci-cd-templates/.github/workflows/sonarqube.yml@8617a17cfc5f5a8897c2a3806bb543c20b4b57e0 # main
     with:
       project-key: wazuh-plugins
-      exclusions: "**/coverage/**,**/__pycache__/**,**/venv/**,**/.venv/**"
+      coverage-artifact-name: coverage-report
+      coverage-report-paths: coverage.xml
+      exclusions: "**/coverage/**,**/__pycache__/**,**/venv/**,**/.venv/**,tests/**"
+      extra-sonar-args: "-Dsonar.coverage.exclusions="
     secrets:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
