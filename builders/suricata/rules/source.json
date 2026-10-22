@@ -4,7 +4,7 @@
   "assets": {
     "open": {
       "name": "suricata.rules",
-      "sha256": "313f1396e72b5f5cc727f3603bd2dad29e6a7e9ba6241ea6c00b29e9a372b617",
+      "sha256": "35d9c6f21a178f618832591cf180892bfcb4bd247a7ca72927a57c159cefa389",
       "bundle_path": "",
       "url": "https://rules.emergingthreats.net/open/suricata-8.0.2/emerging-all.rules"
     }
