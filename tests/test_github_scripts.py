@@ -145,31 +145,23 @@ def test_run_builder_build_native(tmp_path: Path):
         assert mock_sub.call_args[0][0] == ["python3", str(script_path.resolve())]
 
 
-def test_discover_matrix_script(tmp_path: Path):
+def test_discover_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import runpy
     gh_out = tmp_path / "gh_output.txt"
-    repo_root = Path(__file__).resolve().parent.parent
-    env = {
-        "GITHUB_REPOSITORY": "ADORSYS-GIS/wazuh-plugins",
-        "GITHUB_OUTPUT": str(gh_out),
-        "PYTHONPATH": f"{repo_root}:{os.environ.get('PYTHONPATH', '')}",
-    }
-    script = repo_root / ".github" / "scripts" / "discover_matrix.py"
-    res = subprocess.run([sys.executable, str(script)], cwd=repo_root, env=env, capture_output=True, text=True)
-    assert res.returncode == 0
+    fake_builder = tmp_path / "builders" / "fake"
+    fake_builder.mkdir(parents=True)
+    (fake_builder / "config.yaml").write_text("dummy")
+    monkeypatch.chdir(tmp_path)
+
+    script = Path(__file__).resolve().parent.parent / ".github" / "scripts" / "discover_matrix.py"
+    with patch.dict(os.environ, {"GITHUB_REPOSITORY": "Mock/Repo", "GITHUB_OUTPUT": str(gh_out)}):
+        runpy.run_path(str(script))
+
     assert gh_out.exists()
     content = gh_out.read_text()
     assert "has_builders=true" in content
-    assert "repo_lc=adorsys-gis/wazuh-plugins" in content
-
-
-def test_discover_matrix_inprocess(tmp_path: Path):
-    import runpy
-    gh_out = tmp_path / "gh_output.txt"
-    repo_root = Path(__file__).resolve().parent.parent
-    script = repo_root / ".github" / "scripts" / "discover_matrix.py"
-    with patch.dict(os.environ, {"GITHUB_REPOSITORY": "ADORSYS-GIS/wazuh-plugins", "GITHUB_OUTPUT": str(gh_out)}):
-        runpy.run_path(str(script))
-    assert gh_out.exists()
+    assert "repo_lc=mock/repo" in content
+    assert '"fake"' in content
 
 
 def test_generate_install_wrappers_main_cli(tmp_path: Path):

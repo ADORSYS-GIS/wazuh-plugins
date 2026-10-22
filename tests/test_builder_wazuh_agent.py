@@ -5,10 +5,20 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from modules import repackage
-
-# Dynamically import builders/wazuh-agent/build/main.py
+# Dynamically import builders/wazuh-agent/build modules
+import sys
+import types
 repo_root = Path(__file__).resolve().parent.parent
+
+agent_repackage_path = repo_root / "builders" / "wazuh-agent" / "build" / "modules" / "repackage.py"
+spec_repackage = importlib.util.spec_from_file_location("wazuh_agent_repackage", agent_repackage_path)
+repackage = importlib.util.module_from_spec(spec_repackage)
+spec_repackage.loader.exec_module(repackage)
+
+if "modules" not in sys.modules:
+    sys.modules["modules"] = types.ModuleType("modules")
+sys.modules["modules.repackage"] = repackage
+
 agent_main_path = repo_root / "builders" / "wazuh-agent" / "build" / "main.py"
 spec = importlib.util.spec_from_file_location("wazuh_agent_main", agent_main_path)
 agent_main = importlib.util.module_from_spec(spec)
