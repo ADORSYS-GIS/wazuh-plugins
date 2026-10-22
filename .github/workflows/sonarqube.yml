@@ -45,7 +45,7 @@ jobs:
       coverage-artifact-name: coverage-report
       coverage-report-paths: coverage.xml
       exclusions: "**/coverage/**,**/__pycache__/**,**/venv/**,**/.venv/**,tests/**"
-      extra-sonar-args: "-Dsonar.coverage.exclusions="
+      extra-sonar-args: -Dsonar.coverage.exclusions=**/*.sh,scripts/**,tests/**
     secrets:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
