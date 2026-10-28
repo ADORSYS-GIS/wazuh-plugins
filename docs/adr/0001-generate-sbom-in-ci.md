@@ -104,3 +104,4 @@ Nothing to roll back.
 | Kind | Tracking | Status | What it covers |
 | :--- | :--- | :--- | :--- |
 | Issue | ADORSYS-GIS/wazuh-plugins#20 | Open | Requests SBOM generation in CI |
+| PR | ADORSYS-GIS/wazuh-plugins#26 | Open | Adds the `sbom` job and this ADR |
