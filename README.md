@@ -5,6 +5,7 @@
 [![Scripts release](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/scripts-release.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/scripts-release.yaml)
 [![SonarQube](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml)
 [![Test Artifacts](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml)
+[![Static Application Security Testing](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sast.yml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sast.yml)
 
 ## Project Purpose
 

@@ -89,12 +89,12 @@ Nothing to roll back.
 
 ## Evidence
 
-| Claim                                                           | Where                                                            |
-| :-------------------------------------------------------------- | :--------------------------------------------------------------- |
-| The `sbom` job calls the shared workflow with a filesystem scan | `.github/workflows/sast.yml` in this repo                        |
-| The shared workflow generates a CycloneDX SBOM with Trivy       | `ADORSYS-GIS/adorsys-ci-cd-templates/.github/workflows/sbom.yml` |
-| The shared workflow is referenced by commit SHA                 | `.github/workflows/sast.yml` in this repo                        |
-| The builders generate image SBOMs with Syft                     | `builders/common/python/wazuh_build/sbom.py` in this repo        |
+| Claim                                                           | Where                                                                                                                                                                                               |
+| :-------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The `sbom` job calls the shared workflow with a filesystem scan | [`.github/workflows/sast.yml`](https://github.com/ADORSYS-GIS/wazuh-plugins/blob/22f06ffa99359d8fbfdc58f30da824ff665d81d6/.github/workflows/sast.yml)                                               |
+| The shared workflow generates a CycloneDX SBOM with Trivy       | [`ADORSYS-GIS/adorsys-ci-cd-templates/.github/workflows/sbom.yml`](https://github.com/ADORSYS-GIS/adorsys-ci-cd-templates/blob/17fe8c106fcac2a4b6ac1992cd1b89166f0eb5e2/.github/workflows/sbom.yml) |
+| The shared workflow is referenced by commit SHA                 | [`.github/workflows/sast.yml`](https://github.com/ADORSYS-GIS/wazuh-plugins/blob/22f06ffa99359d8fbfdc58f30da824ff665d81d6/.github/workflows/sast.yml)                                               |
+| The builders generate image SBOMs with Syft                     | [`builders/common/python/wazuh_build/sbom.py`](https://github.com/ADORSYS-GIS/wazuh-plugins/blob/df00a065a60bf9ba6bfe888dcb1c30e793b57072/builders/common/python/wazuh_build/sbom.py)               |
 
 ## References
 
@@ -104,7 +104,7 @@ Nothing to roll back.
 
 ## Solution implementation
 
-| Kind  | Tracking                     | Status | What it covers                   |
-| :---- | :--------------------------- | :----- | :------------------------------- |
-| Issue | ADORSYS-GIS/wazuh-plugins#20 | Open   | Requests SBOM generation in CI   |
-| PR    | ADORSYS-GIS/wazuh-plugins#26 | Open   | Adds the `sbom` job and this ADR |
+| Kind  | Tracking                                                                               | Status | What it covers                   |
+| :---- | :------------------------------------------------------------------------------------- | :----- | :------------------------------- |
+| Issue | [ADORSYS-GIS/wazuh-plugins#20](https://github.com/ADORSYS-GIS/wazuh-plugins/issues/20) | Open   | Requests SBOM generation in CI   |
+| PR    | [ADORSYS-GIS/wazuh-plugins#26](https://github.com/ADORSYS-GIS/wazuh-plugins/pull/26)   | Open   | Adds the `sbom` job and this ADR |
