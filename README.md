@@ -6,6 +6,7 @@
 [![SonarQube](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sonarqube.yml)
 [![Test Artifacts](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/test-it.yaml)
 [![Static Application Security Testing](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sast.yml/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/sast.yml)
+[![Dependabot Updates](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ADORSYS-GIS/wazuh-plugins/actions/workflows/dependabot/dependabot-updates)
 
 ## Documentation
 
