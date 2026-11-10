@@ -116,15 +116,11 @@ def main() -> None:
     parser.add_argument("configs", nargs="+", type=Path, help="Config files to read.")
     args = parser.parse_args()
 
-    # Validate paths to prevent traversal attacks
+    # Validate paths exist and are files
     for config_path in args.configs:
-        try:
-            # Resolve to absolute path and check it's not escaping intended directory
-            resolved = config_path.resolve()
-            # Ensure path is within expected scope (current directory or subdirectories)
-            resolved.relative_to(Path.cwd())
-        except ValueError:
-            parser.error(f"Path traversal detected: {config_path}")
+        resolved = config_path.resolve()
+        if not resolved.is_file():
+            parser.error(f"Config file not found or is not a file: {config_path}")
 
     if args.value:
         target = read_value(args.configs[0], args.value)

@@ -220,7 +220,7 @@ def test_yara_build_missing_version(tmp_path: Path):
     cfg = MagicMock()
     with patch.dict(os.environ, {}, clear=True):
         with pytest.raises(SystemExit, match="PIPELINE_VERSION not provided"):
-            build.build_yara(cfg, tmp_path, "native", "1.0", tmp_path, {})
+            build.build_yara(tmp_path, "native", "1.0", tmp_path, {})
 
 
 def test_yara_build_success(tmp_path: Path):
@@ -240,7 +240,7 @@ def test_yara_build_success(tmp_path: Path):
          patch("builders.common.python.wazuh_build.utils.fix_permissions"):
         (tmp_path / "src").mkdir()
         (tmp_path / "rev.h").write_text("#define REV 1")
-        build.build_yara(cfg, tmp_path, "native", "1.0", rule_bundle, {"tag": "v1"})
+        build.build_yara(tmp_path, "native", "1.0", rule_bundle, {"tag": "v1"})
 
 
 def test_yara_main_execution(tmp_path: Path):
