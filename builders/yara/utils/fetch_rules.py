@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 import tempfile
@@ -13,7 +14,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from builders.common.python.wazuh_build import rules
-
 
 
 def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
@@ -98,7 +98,6 @@ def main() -> None:
 def _load_metadata(args, builder_root: Path) -> dict:
     """Load rules metadata from args or default location."""
     if args.metadata:
-        import json
         try:
             return json.loads(args.metadata.read_text(encoding="utf-8"))
         except Exception as exc:
