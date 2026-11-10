@@ -12,9 +12,11 @@ warn() {
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 metadata_root="$script_dir/.."
 
-SUDO="${SUDO:-}"
+# Determine if sudo is needed based on EUID, not from environment
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-  SUDO="${SUDO:-sudo}"
+  SUDO="sudo"
+else
+  SUDO=""
 fi
 
 read_first_line() {

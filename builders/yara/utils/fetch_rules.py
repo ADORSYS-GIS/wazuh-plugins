@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 from builders.common.python.wazuh_build import rules
 
 
+
 def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
     target = output_dir
     if target.exists():
@@ -30,6 +31,7 @@ def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
     return target
 
 
+
 def _copy_bundle_to_target(tmp_root: Path, bundle_path: str, archive_name: str, target: Path) -> None:
     """Copy bundle from temp directory to target."""
     bundle_root = tmp_root / bundle_path
@@ -42,6 +44,7 @@ def _copy_bundle_to_target(tmp_root: Path, bundle_path: str, archive_name: str, 
         shutil.copy2(bundle_root, target / bundle_root.name)
     else:
         shutil.copytree(bundle_root, target, dirs_exist_ok=True)
+
 
 
 def parse_args(meta: dict) -> argparse.Namespace:
@@ -66,6 +69,7 @@ def parse_args(meta: dict) -> argparse.Namespace:
     return parser.parse_args()
 
 
+
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
     builder_root = script_dir.parent
@@ -88,6 +92,7 @@ def main() -> None:
         args.force,
         url_template=url_template
     )
+
 
 
 def _load_metadata(args, builder_root: Path) -> dict:
