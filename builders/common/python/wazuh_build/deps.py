@@ -190,10 +190,16 @@ def _check_library_available(lib: str) -> bool:
         shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
         return True
     except Exception:
-        if lib == "libmagic" and download.has_magic_header():
-            # libmagic pkg-config metadata is flaky; if headers exist, consider it available
-            print(
-                "Warning: libmagic pkg-config check failed; proceeding because header check passed."
-            )
+        if lib == "libmagic":
+            # libmagic pkg-config metadata is flaky; never fail the build on
+            # it. Fall back to the header check purely for logging purposes.
+            if download.has_magic_header():
+                print(
+                    "Warning: libmagic pkg-config check failed; proceeding because header check passed."
+                )
+            else:
+                print(
+                    "Warning: libmagic pkg-config check failed; proceeding anyway."
+                )
             return True
         return False

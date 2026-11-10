@@ -24,11 +24,19 @@ def run(
 ) -> subprocess.CompletedProcess:
     """Run a command with minimal logging."""
     print(f"[cmd] {_stringify(cmd)}")
+    if isinstance(cmd, str):
+        # String commands are trusted snippets coming from repository
+        # configuration (e.g. deps.run_bash_commands). Invoke the shell
+        # explicitly instead of relying on subprocess's ``shell=True``;
+        # anything built from external input must be passed as an argument
+        # list so it is never interpreted by a shell.
+        args: Command = ["/bin/sh", "-c", cmd]
+    else:
+        args = cmd
     result = subprocess.run(
-        cmd,
+        args,
         cwd=str(cwd) if cwd else None,
         env={**os.environ, **env} if env else None,
-        shell=isinstance(cmd, str),
         check=check,
         capture_output=capture,
         text=True,

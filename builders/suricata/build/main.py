@@ -51,7 +51,7 @@ def main() -> None:
         libs.append("libcap-ng")
     deps.require_libraries(libs)
 
-    build_suricata(cfg, dest, triplet, version, rule_bundle, rules_info)
+    build_suricata(dest, triplet, version, rule_bundle, rules_info)
     
     # Package the release
     platform_os = wb_platform.os_id()
