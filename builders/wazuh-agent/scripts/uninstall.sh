@@ -13,20 +13,20 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 metadata_root="$script_dir/.."
 
 SUDO="${SUDO:-}"
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   SUDO="${SUDO:-sudo}"
 fi
 
 read_first_line() {
   local path="$1"
-  if [ -f "$path" ]; then
+  if [[ -f "$path" ]]; then
     head -n 1 "$path" | tr -d '\n'
   fi
 }
 
 agent_version="${AGENT_VERSION:-$(read_first_line "$metadata_root/version.txt")}"
 package_revision="${PACKAGE_REVISION:-$(read_first_line "$metadata_root/package_revision.txt")}"
-if [ -z "$package_revision" ]; then
+if [[ -z "$package_revision" ]]; then
   package_revision="1"
 fi
 
@@ -38,7 +38,7 @@ case "$uname_s" in
 linux*)
   os_id="linux"
   component_prefix="/var/ossec"
-  if [ -r /etc/os-release ]; then
+  if [[ -r /etc/os-release ]]; then
     distro_like=$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro_id=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro="$distro_like $distro_id"
@@ -104,11 +104,14 @@ remove_package() {
       fi
     fi
     ;;
+  *)
+    log "Unsupported package type: $pkg_type"
+    ;;
   esac
 }
 
 cleanup_services() {
-  if [ "$os_id" = "linux" ]; then
+  if [[ "$os_id" = "linux" ]]; then
     if command -v systemctl >/dev/null 2>&1; then
       $SUDO systemctl stop "$(basename "$systemd_unit")" >/dev/null 2>&1 || true
       $SUDO systemctl disable "$(basename "$systemd_unit")" >/dev/null 2>&1 || true
@@ -117,8 +120,8 @@ cleanup_services() {
     if command -v systemctl >/dev/null 2>&1; then
       $SUDO systemctl daemon-reload >/dev/null 2>&1 || true
     fi
-  elif [ "$os_id" = "macos" ]; then
-    if [ -f "$launchd_plist" ] && command -v launchctl >/dev/null 2>&1; then
+  elif [[ "$os_id" = "macos" ]]; then
+    if [[ -f "$launchd_plist" ]] && command -v launchctl >/dev/null 2>&1; then
       $SUDO launchctl unload "$launchd_plist" >/dev/null 2>&1 || true
     fi
     $SUDO rm -f "$launchd_plist"
@@ -129,7 +132,7 @@ main() {
   log "Uninstalling Wazuh agent ${agent_version}-r${package_revision} from ${os_id}/${arch_id}"
   remove_package
   cleanup_services
-  if [ -d "$component_prefix" ]; then
+  if [[ -d "$component_prefix" ]]; then
     log "Removing files under $component_prefix"
     $SUDO rm -rf "$component_prefix"
   else

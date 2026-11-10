@@ -23,8 +23,7 @@ def run(
     capture: bool = False,
 ) -> subprocess.CompletedProcess:
     """Run a command with minimal logging."""
-    cmd_list = cmd if isinstance(cmd, (list, tuple)) else cmd
-    print(f"[cmd] {_stringify(cmd_list)}")
+    print(f"[cmd] {_stringify(cmd)}")
     result = subprocess.run(
         cmd,
         cwd=str(cwd) if cwd else None,

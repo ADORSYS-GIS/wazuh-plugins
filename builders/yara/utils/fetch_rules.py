@@ -25,18 +25,23 @@ def extract_bundle(archive: Path, bundle_path: str, output_dir: Path) -> Path:
         tmp_root = Path(tmpdir)
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(tmp_root)
-        bundle_root = tmp_root / bundle_path
-        if not bundle_root.exists():
-            raise SystemExit(
-                f"Bundle path {bundle_path} not found inside archive {archive.name}"
-            )
-
-        if bundle_root.is_file():
-            shutil.copy2(bundle_root, target / bundle_root.name)
-        else:
-            shutil.copytree(bundle_root, target, dirs_exist_ok=True)
+        _copy_bundle_to_target(tmp_root, bundle_path, archive.name, target)
 
     return target
+
+
+def _copy_bundle_to_target(tmp_root: Path, bundle_path: str, archive_name: str, target: Path) -> None:
+    """Copy bundle from temp directory to target."""
+    bundle_root = tmp_root / bundle_path
+    if not bundle_root.exists():
+        raise SystemExit(
+            f"Bundle path {bundle_path} not found inside archive {archive_name}"
+        )
+
+    if bundle_root.is_file():
+        shutil.copy2(bundle_root, target / bundle_root.name)
+    else:
+        shutil.copytree(bundle_root, target, dirs_exist_ok=True)
 
 
 def parse_args(meta: dict) -> argparse.Namespace:
@@ -64,20 +69,12 @@ def parse_args(meta: dict) -> argparse.Namespace:
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
     builder_root = script_dir.parent
-    default_metadata = builder_root / "rules" / "source.json"
     default_dest = builder_root / "rules-cache"
 
     prelim_meta = rules.load_rules_metadata(builder_root)
     args = parse_args(prelim_meta)
 
-    meta = rules.load_rules_metadata(builder_root)
-    if args.metadata:
-        import json
-        try:
-            meta = json.loads(args.metadata.read_text(encoding="utf-8"))
-        except Exception as exc:
-             raise SystemExit(f"Unable to parse metadata {args.metadata}: {exc}") from exc
-
+    meta = _load_metadata(args, builder_root)
     dest = (args.dest or default_dest).resolve()
     
     # YARA uses a specific URL template if not provided in metadata
@@ -91,6 +88,17 @@ def main() -> None:
         args.force,
         url_template=url_template
     )
+
+
+def _load_metadata(args, builder_root: Path) -> dict:
+    """Load rules metadata from args or default location."""
+    if args.metadata:
+        import json
+        try:
+            return json.loads(args.metadata.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise SystemExit(f"Unable to parse metadata {args.metadata}: {exc}") from exc
+    return rules.load_rules_metadata(builder_root)
 
 
 if __name__ == "__main__":

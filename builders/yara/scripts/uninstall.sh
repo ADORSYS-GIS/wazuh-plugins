@@ -13,13 +13,13 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 metadata_root="$script_dir/.."
 
 SUDO="${SUDO:-}"
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   SUDO="${SUDO:-sudo}"
 fi
 
 read_first_line() {
   local path="$1"
-  if [ -f "$path" ]; then
+  if [[ -f "$path" ]]; then
     head -n 1 "$path" | tr -d '\n'
   fi
 }
@@ -32,7 +32,7 @@ pkg_type="tar"
 case "$uname_s" in
 linux*)
   os_id="linux"
-  if [ -r /etc/os-release ]; then
+  if [[ -r /etc/os-release ]]; then
     distro_like=$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro_id=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro="$distro_like $distro_id"
@@ -95,13 +95,16 @@ remove_package() {
       fi
     fi
     ;;
+  *)
+    log "Unsupported package type: $pkg_type"
+    ;;
   esac
 }
 
 main() {
   log "Uninstalling YARA ${component_version} from ${os_id}/${arch_id}"
   remove_package
-  if [ -d "$component_prefix" ]; then
+  if [[ -d "$component_prefix" ]]; then
     log "Removing files under $component_prefix"
     $SUDO rm -rf "$component_prefix"
   else

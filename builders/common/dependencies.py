@@ -75,13 +75,11 @@ def collect_dependencies(files: Iterable[Path], section: str) -> List[str]:
             section_items = flattened
 
         for entry in section_items:
-            if not isinstance(entry, str):
-                continue
-            name = entry.strip()
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            items.append(name)
+            if isinstance(entry, str):
+                name = entry.strip()
+                if name and name not in seen:
+                    seen.add(name)
+                    items.append(name)
 
     return items
 
@@ -117,6 +115,16 @@ def main() -> None:
     )
     parser.add_argument("configs", nargs="+", type=Path, help="Config files to read.")
     args = parser.parse_args()
+
+    # Validate paths to prevent traversal attacks
+    for config_path in args.configs:
+        try:
+            # Resolve to absolute path and check it's not escaping intended directory
+            resolved = config_path.resolve()
+            # Ensure path is within expected scope (current directory or subdirectories)
+            resolved.relative_to(Path.cwd())
+        except ValueError:
+            parser.error(f"Path traversal detected: {config_path}")
 
     if args.value:
         target = read_value(args.configs[0], args.value)

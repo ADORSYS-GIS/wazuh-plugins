@@ -31,16 +31,26 @@ def install_brew(packages: Iterable[str]) -> None:
         print("[brew] all requested packages are already installed; skipping.")
         return
 
+    _update_brew()
+    _install_missing_packages(missing, is_installed)
+
+
+def _update_brew() -> None:
+    """Attempt to update brew, but continue on failure."""
     try:
         shell.run(["brew", "update"])
     except Exception as exc:
         print(f"[brew] update failed ({exc}); continuing with installs.")
+
+
+def _install_missing_packages(missing: List[str], is_installed) -> None:
+    """Install missing packages with retry logic."""
     failures = []
     for pkg in missing:
         try:
             shell.run(["brew", "install", pkg])
         except Exception:
-            # If the install failed but the package ended up present (e.g., from a concurrent run), continue.
+            # If the install failed but the package ended up present, continue.
             if is_installed(pkg):
                 continue
             # One retry via reinstall to recover from partial/dirty installs.
@@ -92,6 +102,12 @@ def ensure_cbindgen() -> None:
     cur = current_version()
     if cur and _version_at_least(cur, "0.20.0"):
         return
+    
+    _install_cbindgen()
+
+
+def _install_cbindgen() -> None:
+    """Install cbindgen via cargo."""
     if not shell.command_exists("cargo"):
         raise RuntimeError("cargo not available to install cbindgen")
 
@@ -114,24 +130,43 @@ def ensure_pkg_config_path() -> None:
     """Populate PKG_CONFIG_PATH with common locations (including multiarch) if missing."""
     if "PKG_CONFIG_PATH" in os.environ and os.environ["PKG_CONFIG_PATH"]:
         return
+    
+    candidates = _get_pkg_config_candidates()
+    if candidates:
+        os.environ["PKG_CONFIG_PATH"] = ":".join(candidates)
+
+
+def _get_pkg_config_candidates() -> List[str]:
+    """Get list of pkg-config paths to use."""
     candidates = []
-    multiarch = ""
+    
+    # Try to get multiarch path
+    multiarch = _get_multiarch()
+    if multiarch:
+        candidates.append(f"/usr/lib/{multiarch}/pkgconfig")
+    
+    # Add standard paths
+    candidates.extend(["/usr/lib/pkgconfig", "/usr/share/pkgconfig"])
+    
+    # Filter to only existing paths
+    existing = [c for c in candidates if Path(c).exists()]
+    
+    # Add any existing PKG_CONFIG_PATH
+    if os.environ.get("PKG_CONFIG_PATH"):
+        existing.append(os.environ["PKG_CONFIG_PATH"])
+    
+    return existing
+
+
+def _get_multiarch() -> str:
+    """Get the multiarch string from dpkg-architecture."""
     try:
         result = shell.run(
             ["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], capture=True, check=False
         )
-        multiarch = (result.stdout or "").strip()
+        return (result.stdout or "").strip()
     except Exception:
-        multiarch = ""
-    if multiarch:
-        candidates.append(f"/usr/lib/{multiarch}/pkgconfig")
-    candidates.extend(["/usr/lib/pkgconfig", "/usr/share/pkgconfig"])
-    existing = os.environ.get("PKG_CONFIG_PATH", "")
-    parts = [c for c in candidates if Path(c).exists()]
-    if existing:
-        parts.append(existing)
-    if parts:
-        os.environ["PKG_CONFIG_PATH"] = ":".join(parts)
+        return ""
 
 
 def require_tools(tool_names: List[str]) -> None:
@@ -143,17 +178,22 @@ def require_tools(tool_names: List[str]) -> None:
 def require_libraries(lib_names: List[str]) -> None:
     missing: List[str] = []
     for lib in lib_names:
-        try:
-            shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
-        except Exception:
-            if lib == "libmagic":
-                # libmagic pkg-config metadata is flaky; if headers exist, continue without failing.
-                if download.has_magic_header():
-                    continue
-                print(
-                    "Warning: libmagic pkg-config check failed; proceeding because header is absent check only."
-                )
-                continue
+        if not _check_library_available(lib):
             missing.append(lib)
     if missing:
         raise SystemExit(f"Missing required libraries: {', '.join(missing)}")
+
+
+def _check_library_available(lib: str) -> bool:
+    """Check if a library is available via pkg-config."""
+    try:
+        shell.run(["pkg-config", "--exists", lib], check=True, capture=True)
+        return True
+    except Exception:
+        if lib == "libmagic" and download.has_magic_header():
+            # libmagic pkg-config metadata is flaky; if headers exist, consider it available
+            print(
+                "Warning: libmagic pkg-config check failed; proceeding because header check passed."
+            )
+            return True
+        return False

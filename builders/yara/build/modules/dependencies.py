@@ -21,33 +21,43 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
 def configure_macos_env() -> None:
     if wb_platform.os_id() != "macos" or not shell.command_exists("brew"):
         return
-    openssl_prefix = _brew_prefix("openssl@3")
-    libmagic_prefix = _brew_prefix("libmagic")
-    pcre2_prefix = _brew_prefix("pcre2")
+    
+    packages = ["openssl@3", "libmagic", "pcre2"]
+    prefixes = {pkg: _brew_prefix(pkg) for pkg in packages}
+    
+    _configure_pkg_config_paths(prefixes)
+    _configure_compiler_flags(prefixes)
 
+
+def _configure_pkg_config_paths(prefixes: dict) -> None:
+    """Configure PKG_CONFIG_PATH for brew packages."""
     pkgconfig_parts = []
-    for prefix in [openssl_prefix, libmagic_prefix, pcre2_prefix]:
+    for prefix in prefixes.values():
         if prefix:
             pc = Path(prefix) / "lib" / "pkgconfig"
             if pc.exists():
                 pkgconfig_parts.append(str(pc))
+    
     if pkgconfig_parts:
         existing = os.environ.get("PKG_CONFIG_PATH", "")
         os.environ["PKG_CONFIG_PATH"] = ":".join(
             pkgconfig_parts + ([existing] if existing else [])
         )
 
-    def add_flag(env_key: str, flag: str) -> None:
-        os.environ[env_key] = f"{flag} {os.environ.get(env_key, '')}".strip()
 
-    for prefix in [openssl_prefix, libmagic_prefix, pcre2_prefix]:
-        if prefix:
-            include_dir = Path(prefix) / "include"
-            lib_dir = Path(prefix) / "lib"
-            if include_dir.exists():
-                add_flag("CPPFLAGS", f"-I{include_dir}")
-            if lib_dir.exists():
-                add_flag("LDFLAGS", f"-L{lib_dir}")
+def _configure_compiler_flags(prefixes: dict) -> None:
+    """Configure CPPFLAGS and LDFLAGS for brew packages."""
+    for prefix in prefixes.values():
+        if not prefix:
+            continue
+        
+        include_dir = Path(prefix) / "include"
+        lib_dir = Path(prefix) / "lib"
+        
+        if include_dir.exists():
+            os.environ["CPPFLAGS"] = f"-I{include_dir} {os.environ.get('CPPFLAGS', '')}".strip()
+        if lib_dir.exists():
+            os.environ["LDFLAGS"] = f"-L{lib_dir} {os.environ.get('LDFLAGS', '')}".strip()
 
 
 def _brew_prefix(pkg: str) -> str:
