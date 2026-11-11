@@ -20,13 +20,13 @@ RUN apt-get update \
         python3 \
         sudo \
     && python3 /tmp/dependencies.py --section apt /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/apt.txt \
-    && if [[ -s /tmp/apt.txt ]]; then \
+    && if [ -s /tmp/apt.txt ]; then \
            xargs -a /tmp/apt.txt -r apt-get install -y --no-install-recommends; \
        fi \
     && python3 /tmp/dependencies.py --section bash /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/bash.txt \
-    && if [[ -s /tmp/bash.txt ]]; then \
+    && if [ -s /tmp/bash.txt ]; then \
            while read -r cmd; do \
-               [[ -z "$cmd" ]] && continue; \
+               [ -z "$cmd" ] && continue; \
                bash -lc "$cmd"; \
            done < /tmp/bash.txt; \
        fi \
