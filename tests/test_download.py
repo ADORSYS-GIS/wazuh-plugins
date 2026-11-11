@@ -78,3 +78,25 @@ def test_ensure_archive_download_mismatch(tmp_path: Path):
         with pytest.raises(SystemExit, match="Downloaded archive checksum mismatch"):
             download.ensure_archive("http://example.com/a.tar.gz", "bad_sha", archive)
     assert not archive.exists()
+
+
+def test_ensure_archive_without_pinned_checksum(tmp_path: Path):
+    archive = tmp_path / "archive.tar.gz"
+    fake_data = b"rolling feed content"
+    mock_resp = io.BytesIO(fake_data)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        result = download.ensure_archive("http://example.com/a.tar.gz", None, archive)
+
+    assert result == archive
+    assert archive.read_bytes() == fake_data
+
+
+def test_ensure_archive_cached_without_pinned_checksum(tmp_path: Path):
+    archive = tmp_path / "archive.tar.gz"
+    archive.write_bytes(b"cached content")
+
+    result = download.ensure_archive("http://example.com/a.tar.gz", None, archive)
+
+    assert result == archive
+    assert archive.read_bytes() == b"cached content"

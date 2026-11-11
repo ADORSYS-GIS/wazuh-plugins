@@ -121,7 +121,9 @@ def fetch_rules(
     asset = assets[flavor]
     tag = meta.get("tag", "unknown")
     asset_name = asset["name"]
-    sha256 = asset["sha256"]
+    # Assets with an immutable URL keep a pinned digest; rolling feeds such as
+    # the ET Open rules may omit it (the file is regenerated upstream).
+    sha256 = asset.get("sha256")
     bundle_path = asset.get("bundle_path", "")
 
     cache_root = dest.resolve()
