@@ -23,35 +23,53 @@ def ensure_dependencies(cfg: wb_config.BuilderConfig) -> None:
 def configure_macos_env() -> None:
     if wb_platform.os_id() != "macos" or not shell.command_exists("brew"):
         return
+    
     pkgconfig_paths = []
-    for pkg in ["pcre", "pcre2", "libyaml", "jansson", "libmagic", "libpcap", "libnet", "lz4", "zlib"]:
-        try:
-            result = shell.run(["brew", "--prefix", pkg], capture=True, check=False)
-            prefix = (result.stdout or "").strip()
-        except Exception:
-            prefix = ""
-        if prefix:
-            pc = Path(prefix) / "lib" / "pkgconfig"
-            if pc.exists():
-                pkgconfig_paths.append(str(pc))
-            include_dir = Path(prefix) / "include"
-            lib_dir = Path(prefix) / "lib"
-            if include_dir.exists():
-                os.environ["CPPFLAGS"] = (
-                    f"-I{include_dir} {os.environ.get('CPPFLAGS', '')}"
-                )
-            if lib_dir.exists():
-                os.environ["LDFLAGS"] = f"-L{lib_dir} {os.environ.get('LDFLAGS', '')}"
-            
-            bin_dir = Path(prefix) / "bin"
-            if bin_dir.exists():
-                utils.prepend_path_if_missing(str(bin_dir))
-
+    packages = ["pcre", "pcre2", "libyaml", "jansson", "libmagic", "libpcap", "libnet", "lz4", "zlib"]
+    
+    for pkg in packages:
+        _configure_brew_package(pkg, pkgconfig_paths)
+    
     if pkgconfig_paths:
         existing = os.environ.get("PKG_CONFIG_PATH", "")
         os.environ["PKG_CONFIG_PATH"] = ":".join(
             pkgconfig_paths + ([existing] if existing else [])
         )
+
+
+def _configure_brew_package(pkg: str, pkgconfig_paths: list) -> None:
+    """Configure environment variables for a brew package."""
+    try:
+        result = shell.run(["brew", "--prefix", pkg], capture=True, check=False)
+        prefix = (result.stdout or "").strip()
+    except Exception:
+        prefix = ""
+    
+    if not prefix:
+        return
+    
+    prefix_path = Path(prefix)
+    
+    # Configure pkg-config path
+    pc = prefix_path / "lib" / "pkgconfig"
+    if pc.exists():
+        pkgconfig_paths.append(str(pc))
+    
+    # Configure compiler flags
+    include_dir = prefix_path / "include"
+    if include_dir.exists():
+        os.environ["CPPFLAGS"] = (
+            f"-I{include_dir} {os.environ.get('CPPFLAGS', '')}"
+        )
+    
+    lib_dir = prefix_path / "lib"
+    if lib_dir.exists():
+        os.environ["LDFLAGS"] = f"-L{lib_dir} {os.environ.get('LDFLAGS', '')}"
+    
+    # Configure PATH for binaries
+    bin_dir = prefix_path / "bin"
+    if bin_dir.exists():
+        utils.prepend_path_if_missing(str(bin_dir))
 
 
 def setup_environment() -> None:

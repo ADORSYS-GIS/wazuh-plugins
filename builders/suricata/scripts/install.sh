@@ -12,14 +12,16 @@ warn() {
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 metadata_root="$script_dir/.."
 
-SUDO="${SUDO:-}"
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-  SUDO="${SUDO:-sudo}"
+# Determine if sudo is needed based on EUID, not from environment
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
 fi
 
 read_first_line() {
   local path="$1"
-  if [ -f "$path" ]; then
+  if [[ -f "$path" ]]; then
     head -n 1 "$path" | tr -d '\n'
   fi
 }
@@ -27,7 +29,7 @@ read_first_line() {
 component_version="${COMPONENT_VERSION:-$(read_first_line "$metadata_root/version.txt")}"
 release_version="${RELEASE_VERSION:-$(read_first_line "$metadata_root/release.txt")}"
 
-if [ -z "$component_version" ]; then
+if [[ -z "$component_version" ]]; then
   log "Component version not found; set COMPONENT_VERSION"
   exit 1
 fi
@@ -38,7 +40,7 @@ pkg_type="tar"
 case "$uname_s" in
 linux*)
   os_id="linux"
-  if [ -r /etc/os-release ]; then
+  if [[ -r /etc/os-release ]]; then
     distro_like=$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro_id=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro="$distro_like $distro_id"
@@ -90,12 +92,12 @@ resolve_artifact() {
   local filename="$1"
   local candidate
   for candidate in "${artifact_candidates[@]}"; do
-    if [ -n "$candidate" ] && [ -f "$candidate/$filename" ]; then
+    if [[ -n "$candidate" ]] && [ -f "$candidate/$filename" ]]; then
       printf '%s\n' "$candidate/$filename"
       return 0
     fi
   done
-  if [ -n "${ARTIFACT_BASE_URL:-}" ]; then
+  if [[ -n "${ARTIFACT_BASE_URL:-}" ]]; then
     local dest="${TMPDIR:-/tmp}/$filename"
     log "Downloading $filename from ${ARTIFACT_BASE_URL%/}/$filename"
     if curl -fLso "$dest" "${ARTIFACT_BASE_URL%/}/$filename"; then
@@ -109,7 +111,7 @@ resolve_artifact() {
 run_postinstall() {
   local prefix="$1"
   local postinstall="$prefix/scripts/postinstall.sh"
-  if [ -x "$postinstall" ]; then
+  if [[ -x "$postinstall" ]]; then
     log "Running postinstall"
     $SUDO /bin/sh "$postinstall" "$prefix" || warn "postinstall exited with status $?"
   fi
@@ -126,7 +128,7 @@ install_tarball() {
 
   local src_root="$tmpdir/$release_name"
   local component_src="$src_root/$component_rel"
-  if [ ! -d "$component_src" ]; then
+  if [[ ! -d "$component_src" ]]; then
     log "Component path not found inside tarball: $component_src"
     exit 1
   fi
@@ -135,7 +137,7 @@ install_tarball() {
   $SUDO mkdir -p "$(dirname "$component_prefix")"
   $SUDO cp -a "$component_src" "$component_prefix"
 
-  if [ "$os_id" = "linux" ] && [ -f "$src_root/lib/systemd/system/$(basename "$systemd_unit")" ]; then
+  if [[ "$os_id" = "linux" ]] && [ -f "$src_root/lib/systemd/system/$(basename "$systemd_unit")" ]]; then
     $SUDO mkdir -p "$(dirname "$systemd_unit")"
     $SUDO cp -a "$src_root/lib/systemd/system/$(basename "$systemd_unit")" "$systemd_unit"
   fi
@@ -156,7 +158,7 @@ install_dmg() {
   local src_root="$mount_point/$release_name"
   local component_src="$src_root/$component_rel"
 
-  if [ ! -d "$component_src" ]; then
+  if [[ ! -d "$component_src" ]]; then
     log "Component path not found inside DMG: $component_src"
     exit 1
   fi
@@ -208,7 +210,7 @@ install_package() {
 
 main() {
   log "Installing Suricata ${component_version} for ${os_id}/${arch_id}${release_version:+ (release $release_version)}"
-  if [ "${FORCE_TAR_INSTALL:-0}" -ne 1 ]; then
+  if [[ "${FORCE_TAR_INSTALL:-0}" -ne 1 ]]; then
     if install_package; then
       log "Package installation complete"
       return 0

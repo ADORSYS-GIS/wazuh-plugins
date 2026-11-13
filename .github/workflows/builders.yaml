@@ -1,9 +1,5 @@
 name: Builder pipelines
 
-permissions:
-  contents: write
-  packages: write
-
 defaults:
   run:
     shell: bash
@@ -43,6 +39,9 @@ jobs:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
     name: "Linux x ${{ matrix.builder }} x ${{ matrix.triplet }}"
+    permissions:
+      contents: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +80,7 @@ jobs:
           fi
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r .github/workflows/venv-requirements.txt
+          python -m pip install --only-binary :all: -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -156,6 +155,9 @@ jobs:
     needs: discover
     if: needs.discover.outputs.has_builders == 'true'
     name: "MacOS x ${{ matrix.builder }} x ${{ matrix.triplet }}"
+    permissions:
+      contents: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -170,15 +172,22 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Pin the interpreter: the self-hosted runner's `python3` tracks
+          # Homebrew, and `--only-binary :all:` cannot resolve PyYAML on a
+          # brand-new CPython (no cp315 wheels exist). 3.12 keeps wheels
+          # available and matches the Python used by the other workflows.
+          python-version: '3.12'
       - name: Set up Python environment
         shell: bash
         run: |
-          if [[ ! -d .venv ]]; then
-            python3 -m venv .venv
-          fi
+          rm -rf .venv
+          python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r .github/workflows/venv-requirements.txt
+          python -m pip install --only-binary :all: -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -197,7 +206,7 @@ jobs:
             "${{ matrix.builder }}" \
             "${{ matrix.triplet }}"
       - name: Upload ${{ matrix.builder }} ${{ matrix.triplet }} artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.builder }}-${{ steps.package.outputs.version }}-${{ matrix.triplet }}
           path: ${{ steps.package.outputs.artifact_path }}

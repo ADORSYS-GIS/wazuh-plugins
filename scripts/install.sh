@@ -30,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${BUILDER_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 builders=("$@")
-if [ ${#builders[@]} -eq 0 ]; then
+if [[ ${#builders[@]} -eq 0 ]]; then
   builders=("${DEFAULT_BUILDERS[@]}")
 fi
 
@@ -52,9 +52,9 @@ done
 for builder in "${builders[@]}"; do
   script_path_local="$SCRIPT_DIR/${builder}-install.sh"
   script_path_repo="$ROOT/builders/$builder/scripts/install.sh"
-  if [ -x "$script_path_local" ]; then
+  if [[ -x "$script_path_local" ]]; then
     script_path="$script_path_local"
-  elif [ -x "$script_path_repo" ]; then
+  elif [[ -x "$script_path_repo" ]]; then
     script_path="$script_path_repo"
   else
     log "Installer not found for $builder (looked in $script_path_local and $script_path_repo)"
@@ -64,11 +64,11 @@ for builder in "${builders[@]}"; do
   artifact_dir_env="ARTIFACT_DIR_${builder//-/_}"
   artifact_base_env="ARTIFACT_BASE_URL_${builder//-/_}"
   artifact_dir="${ARTIFACT_DIR:-$ROOT/builders/$builder/dist/artifacts}"
-  if [ -n "${!artifact_dir_env-}" ]; then
+  if [[ -n "${!artifact_dir_env-}" ]]; then
     artifact_dir="${!artifact_dir_env}"
   fi
   artifact_base_url="${ARTIFACT_BASE_URL:-}"
-  if [ -n "${!artifact_base_env-}" ]; then
+  if [[ -n "${!artifact_base_env-}" ]]; then
     artifact_base_url="${!artifact_base_env}"
   fi
 

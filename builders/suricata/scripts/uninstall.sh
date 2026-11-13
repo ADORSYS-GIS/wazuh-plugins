@@ -12,14 +12,16 @@ warn() {
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 metadata_root="$script_dir/.."
 
-SUDO="${SUDO:-}"
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-  SUDO="${SUDO:-sudo}"
+# Determine if sudo is needed based on EUID, not from environment
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
 fi
 
 read_first_line() {
   local path="$1"
-  if [ -f "$path" ]; then
+  if [[ -f "$path" ]]; then
     head -n 1 "$path" | tr -d '\n'
   fi
 }
@@ -32,7 +34,7 @@ pkg_type="tar"
 case "$uname_s" in
 linux*)
   os_id="linux"
-  if [ -r /etc/os-release ]; then
+  if [[ -r /etc/os-release ]]; then
     distro_like=$(grep -E '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro_id=$(grep -E '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
     distro="$distro_like $distro_id"
@@ -96,14 +98,17 @@ remove_package() {
       fi
     fi
     ;;
+  *)
+    log "Unsupported package type: $pkg_type"
+    ;;
   esac
 }
 
 cleanup_service() {
-  if [ "$os_id" != "linux" ]; then
+  if [[ "$os_id" != "linux" ]]; then
     return
   fi
-  if [ -f "$systemd_unit" ]; then
+  if [[ -f "$systemd_unit" ]]; then
     log "Removing systemd unit $systemd_unit"
     if command -v systemctl >/dev/null 2>&1; then
       $SUDO systemctl stop "$(basename "$systemd_unit")" >/dev/null 2>&1 || true
@@ -120,7 +125,7 @@ main() {
   log "Uninstalling Suricata ${component_version} from ${os_id}/${arch_id}"
   remove_package
   cleanup_service
-  if [ -d "$component_prefix" ]; then
+  if [[ -d "$component_prefix" ]]; then
     log "Removing files under $component_prefix"
     $SUDO rm -rf "$component_prefix"
   else

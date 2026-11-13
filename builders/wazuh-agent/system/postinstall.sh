@@ -1,7 +1,7 @@
-#!/bin/sh
-set -e
+#!/bin/bash
+set -euo pipefail
 
-COMP_PREFIX=${1:-/opt/wazuh/yara}
+COMP_PREFIX=${1:-/opt/wazuh/wazuh-agent}
 
 # Find a suitable nologin shell
 if command -v nologin >/dev/null 2>&1; then

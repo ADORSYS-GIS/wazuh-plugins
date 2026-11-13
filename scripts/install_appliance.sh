@@ -63,7 +63,7 @@ ensure_wazuh_user() {
 }
 
 mount_and_copy_dmg() {
-  local dmg="$1" target="$2"
+  local dmg="$1"
   local mountpoint
   mountpoint="$(/usr/bin/mktemp -d -t wappliance)"
   hdiutil attach -quiet -mountpoint "$mountpoint" "$dmg"
@@ -97,7 +97,7 @@ install_dmg() {
     exit 1
   fi
   echo "Installing from dmg: $dmg"
-  mount_and_copy_dmg "$dmg" "$install_root"
+  mount_and_copy_dmg "$dmg"
   ensure_wazuh_user || true
   if id -u wazuh >/dev/null 2>&1; then
     sudo chown -R wazuh:wazuh "$install_root" 2>/dev/null || true
@@ -119,6 +119,10 @@ main() {
     yara) install_root="/opt/wazuh/yara" ;;
     suricata) install_root="/opt/wazuh/suricata" ;;
     wazuh-agent) install_root="/var/ossec" ;;
+    *)
+      err "Unknown builder: $builder"
+      exit 1
+      ;;
   esac
 
   if [[ "$builder" != "yara" && "$builder" != "suricata" && "$builder" != "wazuh-agent" ]]; then

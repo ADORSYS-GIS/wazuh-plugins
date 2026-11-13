@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+set -euo pipefail
 
 COMP_PREFIX=${1:-/opt/wazuh/suricata}
 SERVICE_NAME="suricata-wazuh.service"
