@@ -34,7 +34,7 @@ jobs:
       builder_names: ${{ steps.set-matrix.outputs.builder_names }}
       repo_lc: ${{ steps.set-matrix.outputs.repo_lc }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
       - id: set-matrix
         name: Set matrix
         run: python .github/scripts/discover_matrix.py
@@ -67,7 +67,7 @@ jobs:
       TZ: Etc/UTC
       PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
       - name: Set up pkg-config paths
         run: |
           set -euo pipefail
@@ -169,7 +169,7 @@ jobs:
             runner: [self-hosted, wazuh-runner, ARM64]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
       - name: Set up Python environment
         shell: bash
         run: |
