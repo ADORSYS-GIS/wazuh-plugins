@@ -110,7 +110,7 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
@@ -206,7 +206,7 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
           name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}

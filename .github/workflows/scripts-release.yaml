@@ -42,7 +42,7 @@ jobs:
           ls -l "$STAGE_ROOT"
 
       - name: Publish scripts release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: scripts-v${{ inputs.version }}
           name: Scripts ${{ inputs.version }}
