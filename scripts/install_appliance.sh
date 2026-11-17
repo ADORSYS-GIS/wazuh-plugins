@@ -125,11 +125,6 @@ main() {
       ;;
   esac
 
-  if [[ "$builder" != "yara" && "$builder" != "suricata" && "$builder" != "wazuh-agent" ]]; then
-    err "builder must be 'yara', 'suricata', or 'wazuh-agent'"
-    exit 1
-  fi
-
   if [[ ! -d "$artifact_dir" ]]; then
     err "artifact directory not found: $artifact_dir"
     exit 1
