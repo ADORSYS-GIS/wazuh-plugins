@@ -63,7 +63,8 @@ def md5_file(path: Path) -> str:
     downloads; transport security still comes from TLS. Bandit reports
     ``hashlib.md5`` at HIGH severity, hence the explicit, justified suppression.
     """
-    digest = hashlib.md5()  # nosec B324 - MD5 is the only digest upstream publishes
+    # MD5 is the only digest the publisher provides for this rolling feed.
+    digest = hashlib.md5()  # nosec B324
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)

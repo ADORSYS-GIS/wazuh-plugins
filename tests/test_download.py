@@ -124,7 +124,7 @@ def test_ensure_archive_md5_valid(tmp_path: Path):
 
     archive = tmp_path / "archive.tar.gz"
     fake_data = b"rolling feed archive"
-    expected_md5 = hashlib.md5(fake_data).hexdigest()
+    expected_md5 = hashlib.md5(fake_data, usedforsecurity=False).hexdigest()
 
     with patch(
         "urllib.request.urlopen",
@@ -165,7 +165,7 @@ def test_ensure_archive_cached_md5_mismatch_refetches(tmp_path: Path):
     archive = tmp_path / "archive.tar.gz"
     archive.write_bytes(b"stale cached archive")
     fresh = b"fresh upstream archive"
-    fresh_md5 = hashlib.md5(fresh).hexdigest()
+    fresh_md5 = hashlib.md5(fresh, usedforsecurity=False).hexdigest()
 
     with patch(
         "urllib.request.urlopen",
