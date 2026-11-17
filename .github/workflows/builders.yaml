@@ -41,7 +41,9 @@ jobs:
     name: "Linux x ${{ matrix.builder }} x ${{ matrix.triplet }}"
     permissions:
       contents: write
-      packages: write
+      # Only pulls the cache-builders image; publishing happens in
+      # cache-builders.yaml, so write access to packages is not needed here.
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -157,7 +159,9 @@ jobs:
     name: "MacOS x ${{ matrix.builder }} x ${{ matrix.triplet }}"
     permissions:
       contents: write
-      packages: write
+      # Only pulls the cache-builders image; publishing happens in
+      # cache-builders.yaml, so write access to packages is not needed here.
+      packages: read
     strategy:
       fail-fast: false
       matrix:
