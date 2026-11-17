@@ -2,6 +2,8 @@
 Common download operations for Wazuh builders.
 """
 
+import hashlib
+import re
 import shutil
 import tarfile
 import urllib.request
@@ -9,6 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 from . import utils
+
+_SIDECAR_DIGEST = re.compile(r"\b[0-9a-fA-F]{32}\b")
 
 
 def strip_components(tf: tarfile.TarFile, n: int = 1):
@@ -37,36 +41,95 @@ def download_file(url: str, dest: Path) -> None:
         shutil.copyfileobj(resp, fh)
 
 
+def fetch_sidecar_digest(url: str) -> str:
+    """
+    Read a published checksum sidecar (for example ``rules.tar.gz.md5``) and
+    return the digest it contains.
+    """
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        text = resp.read().decode("utf-8", "replace")
+    match = _SIDECAR_DIGEST.search(text)
+    if not match:
+        raise SystemExit(f"Unable to parse checksum sidecar: {url}")
+    return match.group(0).lower()
+
+
+def md5_file(path: Path) -> str:
+    """
+    Return the MD5 digest of a file.
+
+    Several upstream feeds publish only an MD5 sidecar next to a file that they
+    regenerate continuously. It is used to detect truncated or corrupted
+    downloads; transport security still comes from TLS. Bandit reports
+    ``hashlib.md5`` at HIGH severity, hence the explicit, justified suppression.
+    """
+    digest = hashlib.md5()  # nosec B324 - MD5 is the only digest upstream publishes
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_archive(
+    archive_path: Path,
+    sha256: Optional[str],
+    md5: Optional[str],
+    cached: bool,
+) -> None:
+    if md5:
+        actual_md5 = md5_file(archive_path)
+        if actual_md5 != md5:
+            if not cached:
+                archive_path.unlink(missing_ok=True)
+            prefix = "Cached" if cached else "Downloaded"
+            raise SystemExit(
+                f"{prefix} archive md5 mismatch (expected {md5}, got {actual_md5})"
+            )
+    if sha256 and utils.sha256_file(archive_path) != sha256:
+        if not cached:
+            archive_path.unlink(missing_ok=True)
+        prefix = "Cached" if cached else "Downloaded"
+        raise SystemExit(f"{prefix} archive checksum mismatch: {archive_path}")
+
+
 def ensure_archive(
     asset_url: str,
     sha256: Optional[str],
     archive_path: Path,
     force: bool = False,
+    md5_url: Optional[str] = None,
 ) -> Path:
     """
-    Ensure an archive exists at the specified path and matches the SHA256 checksum.
-    If not, download it.
+    Ensure an archive exists at the specified path and matches the published
+    checksum. If not, download it.
 
     ``sha256`` may be ``None`` for rolling upstream feeds that publish no stable
-    digest; in that case the archive is accepted as-is and a warning is printed.
-    Callers should only do this for sources that cannot be pinned.
+    digest; callers should only do this for sources that cannot be pinned. Such
+    a feed can still be verified with ``md5_url``, a sidecar maintained by the
+    publisher (see ``builders/suricata/rules/source.json``).
     """
+    md5 = fetch_sidecar_digest(md5_url) if md5_url else None
+
     if archive_path.exists() and not force:
-        if sha256 and utils.sha256_file(archive_path) != sha256:
-            raise SystemExit(f"Cached archive checksum mismatch: {archive_path}")
-        return archive_path
+        if md5 and md5_file(archive_path) != md5:
+            # The publisher replaced the artifact since we cached it. That is
+            # expected for rolling feeds, so refetch rather than fail.
+            print(
+                f"[download] cached {archive_path.name} no longer matches the "
+                "upstream digest; refetching"
+            )
+        else:
+            _verify_archive(archive_path, sha256, md5, cached=True)
+            return archive_path
+
     download_file(asset_url, archive_path)
-    if not sha256:
-        actual = utils.sha256_file(archive_path)
-        print(
-            f"[download] no pinned checksum for {archive_path.name}; "
-            f"skipping verification (sha256 {actual})"
-        )
+    if sha256 or md5:
+        _verify_archive(archive_path, sha256, md5, cached=False)
         return archive_path
+
     actual = utils.sha256_file(archive_path)
-    if actual != sha256:
-        archive_path.unlink(missing_ok=True)
-        raise SystemExit(
-            f"Downloaded archive checksum mismatch (expected {sha256}, got {actual})"
-        )
+    print(
+        f"[download] no published checksum for {archive_path.name}; "
+        f"skipping verification (sha256 {actual})"
+    )
     return archive_path

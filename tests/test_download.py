@@ -100,3 +100,83 @@ def test_ensure_archive_cached_without_pinned_checksum(tmp_path: Path):
 
     assert result == archive
     assert archive.read_bytes() == b"cached content"
+
+
+def test_fetch_sidecar_digest(tmp_path: Path):
+    sidecar = io.BytesIO(b"340b10dad1658d0e98dec2b2745baded  emerging-all.rules.tar.gz\n")
+
+    with patch("urllib.request.urlopen", return_value=sidecar):
+        digest = download.fetch_sidecar_digest("http://example.com/a.tar.gz.md5")
+
+    assert digest == "340b10dad1658d0e98dec2b2745baded"
+
+
+def test_fetch_sidecar_digest_invalid(tmp_path: Path):
+    sidecar = io.BytesIO(b"no digest here\n")
+
+    with patch("urllib.request.urlopen", return_value=sidecar):
+        with pytest.raises(SystemExit, match="Unable to parse checksum sidecar"):
+            download.fetch_sidecar_digest("http://example.com/a.tar.gz.md5")
+
+
+def test_ensure_archive_md5_valid(tmp_path: Path):
+    import hashlib
+
+    archive = tmp_path / "archive.tar.gz"
+    fake_data = b"rolling feed archive"
+    expected_md5 = hashlib.md5(fake_data).hexdigest()
+
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=[io.BytesIO(expected_md5.encode()), io.BytesIO(fake_data)],
+    ):
+        result = download.ensure_archive(
+            "http://example.com/a.tar.gz",
+            None,
+            archive,
+            md5_url="http://example.com/a.tar.gz.md5",
+        )
+
+    assert result == archive
+    assert archive.read_bytes() == fake_data
+
+
+def test_ensure_archive_md5_mismatch(tmp_path: Path):
+    archive = tmp_path / "archive.tar.gz"
+
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=[io.BytesIO(b"0" * 32), io.BytesIO(b"corrupted")],
+    ):
+        with pytest.raises(SystemExit, match="Downloaded archive md5 mismatch"):
+            download.ensure_archive(
+                "http://example.com/a.tar.gz",
+                None,
+                archive,
+                md5_url="http://example.com/a.tar.gz.md5",
+            )
+
+    assert not archive.exists()
+
+
+def test_ensure_archive_cached_md5_mismatch_refetches(tmp_path: Path):
+    import hashlib
+
+    archive = tmp_path / "archive.tar.gz"
+    archive.write_bytes(b"stale cached archive")
+    fresh = b"fresh upstream archive"
+    fresh_md5 = hashlib.md5(fresh).hexdigest()
+
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=[io.BytesIO(fresh_md5.encode()), io.BytesIO(fresh)],
+    ):
+        result = download.ensure_archive(
+            "http://example.com/a.tar.gz",
+            None,
+            archive,
+            md5_url="http://example.com/a.tar.gz.md5",
+        )
+
+    assert result == archive
+    assert archive.read_bytes() == fresh

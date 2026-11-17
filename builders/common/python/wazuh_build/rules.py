@@ -122,8 +122,10 @@ def fetch_rules(
     tag = meta.get("tag", "unknown")
     asset_name = asset["name"]
     # Assets with an immutable URL keep a pinned digest; rolling feeds such as
-    # the ET Open rules may omit it (the file is regenerated upstream).
+    # the ET Open rules publish no stable digest but serve a checksum sidecar
+    # next to the archive, which is verified instead.
     sha256 = asset.get("sha256")
+    md5_url = asset.get("md5_url")
     bundle_path = asset.get("bundle_path", "")
 
     cache_root = dest.resolve()
@@ -134,7 +136,9 @@ def fetch_rules(
     else:
         asset_url = asset.get("url") or f"{meta.get('source').rstrip('/')}/{asset_name}"
 
-    archive = download.ensure_archive(asset_url, sha256, archive_path, force)
+    archive = download.ensure_archive(
+        asset_url, sha256, archive_path, force, md5_url=md5_url
+    )
     output_dir = cache_root / tag / flavor
     extracted = extract_callback(archive, bundle_path, output_dir)
     print(f"Fetched rules flavor '{flavor}' (tag {tag}) into: {extracted}")

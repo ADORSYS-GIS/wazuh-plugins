@@ -3,9 +3,10 @@
   "tag": "open-8.0.2-all",
   "assets": {
     "open": {
-      "name": "suricata.rules",
+      "name": "emerging-all.rules.tar.gz",
       "bundle_path": "",
-      "url": "https://rules.emergingthreats.net/open/suricata-8.0.2/emerging-all.rules"
+      "md5_url": "https://rules.emergingthreats.net/open/suricata-8.0.2/emerging-all.rules.tar.gz.md5",
+      "url": "https://rules.emergingthreats.net/open/suricata-8.0.2/emerging-all.rules.tar.gz"
     }
   }
 }
