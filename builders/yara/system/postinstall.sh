@@ -1,5 +1,5 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -e
 
 COMP_PREFIX=${1:-/opt/wazuh/yara}
 
