@@ -92,7 +92,7 @@ resolve_artifact() {
   local filename="$1"
   local candidate
   for candidate in "${artifact_candidates[@]}"; do
-    if [[ -n "$candidate" ]] && [ -f "$candidate/$filename" ]]; then
+    if [[ -n "$candidate" ]] && [[ -f "$candidate/$filename" ]]; then
       printf '%s\n' "$candidate/$filename"
       return 0
     fi
@@ -137,7 +137,7 @@ install_tarball() {
   $SUDO mkdir -p "$(dirname "$component_prefix")"
   $SUDO cp -a "$component_src" "$component_prefix"
 
-  if [[ "$os_id" = "linux" ]] && [ -f "$src_root/lib/systemd/system/$(basename "$systemd_unit")" ]]; then
+  if [[ "$os_id" = "linux" ]] && [[ -f "$src_root/lib/systemd/system/$(basename "$systemd_unit")" ]]; then
     $SUDO mkdir -p "$(dirname "$systemd_unit")"
     $SUDO cp -a "$src_root/lib/systemd/system/$(basename "$systemd_unit")" "$systemd_unit"
   fi

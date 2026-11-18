@@ -89,7 +89,7 @@ resolve_artifact() {
   local filename="$1"
   local candidate
   for candidate in "${artifact_candidates[@]}"; do
-    if [[ -n "$candidate" ]] && [ -f "$candidate/$filename" ]]; then
+    if [[ -n "$candidate" ]] && [[ -f "$candidate/$filename" ]]; then
       printf '%s\n' "$candidate/$filename"
       return 0
     fi
