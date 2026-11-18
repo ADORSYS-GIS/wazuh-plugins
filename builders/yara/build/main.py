@@ -53,7 +53,7 @@ def main() -> None:
         ["openssl", "libpcre2-8", "libmagic", "jansson", "libprotobuf-c"]
     )
 
-    build_yara(cfg, dest, triplet, version, rule_bundle, rules_info)
+    build_yara(dest, triplet, version, rule_bundle, rules_info)
     
     # Package the release
     platform_os = wb_platform.os_id()

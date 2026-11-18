@@ -24,7 +24,6 @@ def prepare_dest(release_root: Path, component_root: Path, dest: Path) -> None:
 
 
 def build_yara(
-    cfg: wb_config.BuilderConfig,
     dest: Path,
     triplet: str,
     version: str,

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 args=()
 for iface in /sys/class/net/*/; do

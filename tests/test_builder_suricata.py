@@ -188,7 +188,7 @@ def test_suricata_build_missing_version(tmp_path: Path):
     cfg = MagicMock()
     with patch.dict(os.environ, {}, clear=True):
         with pytest.raises(SystemExit, match="PIPELINE_VERSION not provided"):
-            build.build_suricata(cfg, tmp_path, "native", "1.0", tmp_path, {})
+            build.build_suricata(tmp_path, "native", "1.0", tmp_path, {})
 
 
 def test_suricata_build_success(tmp_path: Path):
@@ -208,7 +208,7 @@ def test_suricata_build_success(tmp_path: Path):
          patch("builders.common.python.wazuh_build.utils.fix_permissions"):
         (tmp_path / "src").mkdir()
         (tmp_path / "rev.h").write_text("#define REV 1")
-        build.build_suricata(cfg, tmp_path, "native", "1.0", rule_bundle, {"tag": "v1"})
+        build.build_suricata(tmp_path, "native", "1.0", rule_bundle, {"tag": "v1"})
 
 
 def test_suricata_main_execution(tmp_path: Path):

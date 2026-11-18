@@ -75,13 +75,11 @@ def collect_dependencies(files: Iterable[Path], section: str) -> List[str]:
             section_items = flattened
 
         for entry in section_items:
-            if not isinstance(entry, str):
-                continue
-            name = entry.strip()
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            items.append(name)
+            if isinstance(entry, str):
+                name = entry.strip()
+                if name and name not in seen:
+                    seen.add(name)
+                    items.append(name)
 
     return items
 
@@ -117,6 +115,12 @@ def main() -> None:
     )
     parser.add_argument("configs", nargs="+", type=Path, help="Config files to read.")
     args = parser.parse_args()
+
+    # Validate paths exist and are files
+    for config_path in args.configs:
+        resolved = config_path.resolve()
+        if not resolved.is_file():
+            parser.error(f"Config file not found or is not a file: {config_path}")
 
     if args.value:
         target = read_value(args.configs[0], args.value)

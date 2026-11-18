@@ -25,7 +25,8 @@ dependencies:
     - curl
 ci:
   lint:
-    - echo "Lint wazuh-agent builder inputs"
+    - find . -name "*.py" -type f -exec python3 -m py_compile {} \;
+    - find . -name "*.sh" -type f -exec bash -n {} \;
   tests:
     - name: version-file-present
       command: test -s version.txt

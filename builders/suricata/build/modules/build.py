@@ -28,7 +28,6 @@ def prepare_dest(release_root: Path, component_root: Path, dest: Path) -> None:
 
 
 def build_suricata(
-    cfg: wb_config.BuilderConfig,
     dest: Path,
     triplet: str,
     version: str,
