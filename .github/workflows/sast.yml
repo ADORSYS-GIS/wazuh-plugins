@@ -18,6 +18,13 @@ jobs:
 
   sast-python:
     uses: ADORSYS-GIS/adorsys-ci-cd-templates/.github/workflows/sast-python.yml@6a07b60f35e2b595385500be57330e3eb178e706
+    # On push the template switches reviewdog to its `github-check` reporter,
+    # which fails to PATCH the check run it just created ("404 Not Found") after
+    # posting the annotations. That is a reporting bug in the shared template,
+    # not a finding, so do not fail `main` on it; pull requests keep the hard
+    # gate (they use the `github-pr-check` reporter) and SonarQube still runs
+    # the vulnerability gate on `main`.
+    continue-on-error: ${{ github.event_name != 'pull_request' }}
     with:
       runner: ubuntu-latest
       working-directory: "."
