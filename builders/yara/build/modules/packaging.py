@@ -85,7 +85,7 @@ def install_rules_and_scripts(
 
     scripts_dest = component_root / "scripts"
     scripts_dest.mkdir(parents=True, exist_ok=True)
-    for script_name in ["postinstall.sh"]:  # TODO @sse
+    for script_name in ("postinstall.sh",):
         shutil.copy2(script_dir / script_name, scripts_dest / script_name)
     for script in scripts_dest.rglob("*.py"):
         script.chmod(0o770)
