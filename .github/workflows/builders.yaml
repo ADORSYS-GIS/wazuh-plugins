@@ -111,13 +111,24 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
-          name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          make_latest: true
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          title="${{ matrix.builder }} ${{ steps.package.outputs.version }}"
+          # Idempotent on purpose: this used to be softprops/action-gh-release,
+          # which PATCHes tag_name when the release already exists and fails
+          # with `already_exists` if another release claims that tag (that is
+          # what broke the wazuh-agent 0.5.2 build).
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; updating metadata."
+          else
+            gh release create "$tag" --title "$title" --latest --repo "$repo"
+          fi
+          gh release edit "$tag" --title "$title" --latest --repo "$repo"
       - name: Upload ${{ matrix.builder }} release assets
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
@@ -237,13 +248,24 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
-          name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          make_latest: true
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          title="${{ matrix.builder }} ${{ steps.package.outputs.version }}"
+          # Idempotent on purpose: this used to be softprops/action-gh-release,
+          # which PATCHes tag_name when the release already exists and fails
+          # with `already_exists` if another release claims that tag (that is
+          # what broke the wazuh-agent 0.5.2 build).
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; updating metadata."
+          else
+            gh release create "$tag" --title "$title" --latest --repo "$repo"
+          fi
+          gh release edit "$tag" --title "$title" --latest --repo "$repo"
       - name: Upload ${{ matrix.builder }} release assets
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
