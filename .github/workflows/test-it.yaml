@@ -20,7 +20,7 @@ jobs:
           - ubuntu-latest
           - ubuntu-latest-arm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
