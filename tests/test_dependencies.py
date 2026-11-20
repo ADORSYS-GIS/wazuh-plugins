@@ -73,7 +73,10 @@ def test_main_cli_section_lines(tmp_path: Path, capsys):
     f1 = tmp_path / "c1.yaml"
     f1.write_text("dependencies:\n  apt:\n    - curl\n")
 
-    with patch("sys.argv", ["dependencies.py", "--section", "apt", str(f1)]):
+    with patch(
+        "sys.argv",
+        ["dependencies.py", "--root", str(tmp_path), "--section", "apt", str(f1)],
+    ):
         dependencies.main()
     captured = capsys.readouterr()
     assert captured.out.strip() == "curl"
@@ -83,17 +86,62 @@ def test_main_cli_section_json(tmp_path: Path, capsys):
     f1 = tmp_path / "c1.yaml"
     f1.write_text("dependencies:\n  apt:\n    - curl\n")
 
-    with patch("sys.argv", ["dependencies.py", "--section", "apt", "--format", "json", str(f1)]):
+    with patch(
+        "sys.argv",
+        [
+            "dependencies.py",
+            "--root",
+            str(tmp_path),
+            "--section",
+            "apt",
+            "--format",
+            "json",
+            str(f1),
+        ],
+    ):
         dependencies.main()
     captured = capsys.readouterr()
     assert json.loads(captured.out.strip()) == ["curl"]
+
+
+def test_main_cli_rejects_paths_outside_root(tmp_path: Path, capsys):
+    outside = tmp_path.parent / "outside.yaml"
+    outside.write_text("dependencies:\n  apt:\n    - curl\n")
+    root = tmp_path / "root"
+    root.mkdir()
+
+    with patch(
+        "sys.argv",
+        [
+            "dependencies.py",
+            "--root",
+            str(root),
+            "--section",
+            "apt",
+            str(outside),
+        ],
+    ):
+        with pytest.raises(SystemExit):
+            dependencies.main()
+
+    assert "escapes" in capsys.readouterr().err
 
 
 def test_main_cli_value(tmp_path: Path, capsys):
     f1 = tmp_path / "c1.yaml"
     f1.write_text("pipeline:\n  version: 2.5.0\n")
 
-    with patch("sys.argv", ["dependencies.py", "--value", "pipeline.version", str(f1)]):
+    with patch(
+        "sys.argv",
+        [
+            "dependencies.py",
+            "--root",
+            str(tmp_path),
+            "--value",
+            "pipeline.version",
+            str(f1),
+        ],
+    ):
         dependencies.main()
     captured = capsys.readouterr()
     assert captured.out.strip() == "2.5.0"

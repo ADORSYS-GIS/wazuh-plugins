@@ -81,8 +81,8 @@ jobs:
             python3 -m venv .venv
           fi
           source .venv/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install --only-binary :all: -r .github/workflows/venv-requirements.txt
+          python -m pip install --only-binary :all: --require-hashes \
+            -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -111,13 +111,24 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
-          name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          make_latest: true
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          title="${{ matrix.builder }} ${{ steps.package.outputs.version }}"
+          # Idempotent on purpose: this used to be softprops/action-gh-release,
+          # which PATCHes tag_name when the release already exists and fails
+          # with `already_exists` if another release claims that tag (that is
+          # what broke the wazuh-agent 0.5.2 build).
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; updating metadata."
+          else
+            gh release create "$tag" --title "$title" --latest --repo "$repo"
+          fi
+          gh release edit "$tag" --title "$title" --latest --repo "$repo"
       - name: Upload ${{ matrix.builder }} release assets
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
@@ -178,6 +189,10 @@ jobs:
       - uses: actions/checkout@v5
       - name: Set up Python environment
         shell: bash
+        env:
+          # A tagged uv release is immutable, so this digest stays valid.
+          UV_VERSION: "0.13.9"
+          UV_INSTALLER_SHA256: "ccc888115ac831bd9c30855c1d4abeae32fce679701d2aac8e72eb0beffb41c2"
         run: |
           set -euo pipefail
           # The runner's RUNNER_TOOL_CACHE points at /Users/runner, which the
@@ -191,12 +206,21 @@ jobs:
           # matches the Python used by the other workflows.
           export PATH="$HOME/.local/bin:$PATH"
           if ! command -v uv >/dev/null 2>&1; then
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            tmp="$(mktemp -d)"
+            uv_installer="${tmp}/uv-installer.sh"
+            curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
+              "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-installer.sh" \
+              -o "${uv_installer}"
+            # Verify before executing, and refuse anything but HTTPS.
+            echo "${UV_INSTALLER_SHA256}  ${uv_installer}" | shasum -a 256 -c -
+            sh "${uv_installer}"
+            rm -rf "${tmp}"
           fi
           rm -rf .venv
           uv venv --python 3.12 .venv
           source .venv/bin/activate
-          uv pip install --only-binary :all: -r .github/workflows/venv-requirements.txt
+          uv pip install --only-binary :all: --require-hashes \
+            -r .github/workflows/venv-requirements.txt
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Build ${{ matrix.triplet }} artifact
@@ -224,13 +248,24 @@ jobs:
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')) &&
           matrix.triplet == 'linux-amd64'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.builder }}-v${{ steps.package.outputs.version }}
-          name: ${{ matrix.builder }} ${{ steps.package.outputs.version }}
-          make_latest: true
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          tag="${{ matrix.builder }}-v${{ steps.package.outputs.version }}"
+          title="${{ matrix.builder }} ${{ steps.package.outputs.version }}"
+          # Idempotent on purpose: this used to be softprops/action-gh-release,
+          # which PATCHes tag_name when the release already exists and fails
+          # with `already_exists` if another release claims that tag (that is
+          # what broke the wazuh-agent 0.5.2 build).
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; updating metadata."
+          else
+            gh release create "$tag" --title "$title" --latest --repo "$repo"
+          fi
+          gh release edit "$tag" --title "$title" --latest --repo "$repo"
       - name: Upload ${{ matrix.builder }} release assets
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main') ||

@@ -63,8 +63,12 @@ def md5_file(path: Path) -> str:
     downloads; transport security still comes from TLS. Bandit reports
     ``hashlib.md5`` at HIGH severity, hence the explicit, justified suppression.
     """
-    # MD5 is the only digest the publisher provides for this rolling feed.
-    digest = hashlib.md5()  # nosec B324
+    # MD5 is the only digest the publisher maintains for this rolling feed. It
+    # is a download-corruption check, not a security control: TLS is the
+    # transport boundary, and the immutable YARA assets are pinned with
+    # SHA-256. Both analysers are told so explicitly, since neither can know
+    # that the weak algorithm is dictated by the upstream feed.
+    digest = hashlib.md5()  # nosec B324  # NOSONAR
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)

@@ -19,18 +19,25 @@ RUN apt-get update \
         git \
         python3 \
         sudo \
-    && python3 /tmp/dependencies.py --section apt /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/apt.txt \
+    && python3 /tmp/dependencies.py --section apt \
+        /tmp/config-suricata.yaml \
+        /tmp/config-yara.yaml \
+        /tmp/config-wazuh-agent.yaml >/tmp/apt.txt \
     && if [ -s /tmp/apt.txt ]; then \
            xargs -a /tmp/apt.txt -r apt-get install -y --no-install-recommends; \
        fi \
-    && python3 /tmp/dependencies.py --section bash /tmp/config-suricata.yaml /tmp/config-yara.yaml /tmp/config-wazuh-agent.yaml >/tmp/bash.txt \
+    && python3 /tmp/dependencies.py --section bash \
+        /tmp/config-suricata.yaml \
+        /tmp/config-yara.yaml \
+        /tmp/config-wazuh-agent.yaml >/tmp/bash.txt \
     && if [ -s /tmp/bash.txt ]; then \
            while read -r cmd; do \
                [ -z "$cmd" ] && continue; \
                bash -lc "$cmd"; \
            done < /tmp/bash.txt; \
        fi \
-    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+    && curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
+       https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
        dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \

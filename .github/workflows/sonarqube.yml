@@ -24,7 +24,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --only-binary :all: -r requirements-dev.txt
+          # Installed from the hash-pinned lock so the versions (and bytes)
+          # cannot drift between runs.
+          pip install --only-binary :all: --require-hashes \
+            -r requirements-dev.lock
 
       - name: Run tests with coverage
         run: |
